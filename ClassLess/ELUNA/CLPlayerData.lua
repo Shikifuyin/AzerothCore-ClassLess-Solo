@@ -303,7 +303,7 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 		
 		-- Remove previous Rank
 		local iTalentID = self.m_arrTalents[iIndex]:GetCurrentTalentID()
-		if hPlayer:HasTalent( iTalentID, 0 ) then
+		if hPlayer:HasSpell( iTalentID ) then
 			hPlayer:RemoveSpell( iTalentID, 255, false )
 		end
 		
@@ -312,8 +312,8 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 	
 		-- Add upgraded Rank
 		iTalentID = self.m_arrTalents[iIndex]:GetCurrentTalentID()
-		if ( not hPlayer:HasTalent(iTalentID, 0) ) then
-			hPlayer:LearnTalent( iTalentID, iTalentRank )
+		if ( not hPlayer:HasSpell(iTalentID) ) then
+			hPlayer:LearnSpell( iTalentID )
 		end
 		
 		return
@@ -329,8 +329,8 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 	
 	-- Add current Rank
 	local iTalentID = hTalentDesc:GetCurrentTalentID()
-	if ( not hPlayer:HasTalent(iTalentID, 0) ) then
-		hPlayer:LearnTalent( iTalentID, iTalentRank )
+	if ( not hPlayer:HasSpell(iTalentID) ) then
+		hPlayer:LearnSpell( iTalentID )
 	end
 	
 	-- Add Talent
