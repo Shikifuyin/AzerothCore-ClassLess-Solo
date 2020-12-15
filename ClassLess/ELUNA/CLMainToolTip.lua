@@ -33,9 +33,6 @@ function ClassLessMainToolTip:init()
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessMainToolTip : Getters / Setters
-
--------------------------------------------------------------------------------------------------------------------
 -- ClassLessMainToolTip : Methods
 function ClassLessMainToolTip:SetOwner( hOwner, strAnchor )
 	self.m_hToolTip:SetOwner( hOwner, strAnchor )

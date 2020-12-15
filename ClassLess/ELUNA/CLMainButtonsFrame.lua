@@ -46,9 +46,6 @@ function ClassLessMainButtonsFrame:init()
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessMainButtonsFrame : Getters / Setters
-
--------------------------------------------------------------------------------------------------------------------
 -- ClassLessMainButtonsFrame : Methods
 function ClassLessMainButtonsFrame:Update()
 	-- Update Enabled / Disabled Buttons here ...

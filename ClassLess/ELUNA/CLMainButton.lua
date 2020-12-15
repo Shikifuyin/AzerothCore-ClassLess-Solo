@@ -38,7 +38,7 @@ function ClassLessMainButton:init()
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessMainButton : Getters / Setters
+-- ClassLessMainButton : Methods
 
 -------------------------------------------------------------------------------------------------------------------
 -- ClassLessMainButton : Initialization
@@ -84,12 +84,17 @@ function ClassLessMainButton:Initialize()
 			-- Set ToolTip Text
 			local iSpellPoints = CLClient:GetFreeSpellPoints()
 			local iTalentPoints = CLClient:GetFreeTalentPoints()
+			local iGlyphMajorSlots = CLClient:GetFreeGlyphMajorSlots()
+			local iGlyphMinorSlots = CLClient:GetFreeGlyphMinorSlots()
 
-			hToolTip:AddLine( "Spell/Talent Manager", NORMAL_FONT_COLOR )
+			hToolTip:AddLine( "Spell/Talent/Glyph Manager", NORMAL_FONT_COLOR )
 			hToolTip:AddLine( "Left Click : Open UI", HIGHLIGHT_FONT_COLOR )
 			hToolTip:AddLine( "Right Click : Drag Button", HIGHLIGHT_FONT_COLOR )
 			if ( iSpellPoints > 0 or iTalentPoints > 0 ) then
-				hToolTip:AddLine( iSpellPoints .. " SP / " .. iTalentPoints .. " TP", GREEN_FONT_COLOR )
+				hToolTip:AddLine( "Ability Points : " .. iSpellPoints .. " SP / " .. iTalentPoints .. " TP", GREEN_FONT_COLOR )
+			end
+			if ( iGlyphMajorSlots > 0 or iGlyphMinorSlots > 0 ) then
+				hToolTip:AddLine( "Glyphs Slots : " .. iGlyphMajorSlots .. " Major / " .. iGlyphMinorSlots .. " Minor", GREEN_FONT_COLOR )
 			end
 			
 			-- Show tooltip
@@ -115,45 +120,4 @@ function ClassLessMainButton:Initialize()
 	print( "CLMainButton Initialized !" )
 end
 
--------------------------------------------------------------------------------------------------------------------
--- ClassLessMainButton : Methods
-
-
-
-
-
-
--- local function BuildUI_MainButton()
-
-
-	-- -- Setup button event : Update
-    -- button:SetScript( "OnUpdate",
-        -- function()
-			-- -- Get remaining Spell/Talent points
-            -- local ap, tp = GetPoints("ap"), GetPoints("tp")
-			
-			-- -- Flash button when unspent points are available
-            -- if ap > 0 or tp > 0 then
-                -- FrameShow(button.flash)
-            -- else
-                -- FrameHide(button.flash)
-            -- end
-        -- end
-    -- )
-
-	-- -- Setup button event : PLAYER_LEVEL_UP event
-	-- button:RegisterEvent("PLAYER_LEVEL_UP")
-    -- button:SetScript( "OnEvent",
-        -- function()
-			-- -- Get active tab
-            -- local tab = _G["CLMainFrame"]:GetAttribute("tab")
-			
-			-- -- Select active tab
-            -- if tab ~= 0 then
-                -- SelectTab(tab, "CLContainer", "CLMainFrame", "CLButton")
-            -- end
-        -- end
-    -- )
-
--- end
 

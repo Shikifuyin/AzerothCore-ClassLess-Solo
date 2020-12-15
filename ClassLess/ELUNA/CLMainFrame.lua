@@ -51,10 +51,8 @@ function ClassLessMainFrame:init()
 
 	self.m_arrSpellTabFrames = {}
 	self.m_arrTalentTabFrames = {}
+	self.m_arrGlyphTabFrames = {}
 end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessMainFrame : Getters / Setters
 
 -------------------------------------------------------------------------------------------------------------------
 -- ClassLessMainFrame : Methods
@@ -71,7 +69,7 @@ function ClassLessMainFrame:Toggle()
 end
 
 function ClassLessMainFrame:SwitchTab( iTabIndex, iClassIndex )
-	if ( iTabIndex <= 0 or iTabIndex > 2 ) then
+	if ( iTabIndex <= 0 or iTabIndex > 3 ) then
 		return
 	end
 	if ( iClassIndex <= 0 or iClassIndex > CLClassCount ) then
@@ -88,12 +86,16 @@ function ClassLessMainFrame:SwitchTab( iTabIndex, iClassIndex )
 		self.m_arrSpellTabFrames[self.m_iCurrentClassIndex]:Hide()
 	elseif ( self.m_iCurrentTabIndex == 2 ) then
 		self.m_arrTalentTabFrames[self.m_iCurrentClassIndex]:Hide()
+	elseif ( self.m_iCurrentTabIndex == 3 ) then
+		self.m_arrGlyphTabFrames[self.m_iCurrentClassIndex]:Hide()
 	end
 	
 	if ( iTabIndex == 1 ) then
 		self.m_arrSpellTabFrames[iClassIndex]:Show()
 	elseif ( iTabIndex == 2 ) then
 		self.m_arrTalentTabFrames[iClassIndex]:Show()
+	elseif ( iTabIndex == 2=3 ) then
+		self.m_arrGlyphTabFrames[iClassIndex]:Show()
 	end
 	
 	self.m_iCurrentTabIndex = iTabIndex
@@ -107,10 +109,11 @@ function ClassLessMainFrame:Update()
 	-- Update Buttons Frame
 	self.m_hMainButtonsFrame:Update()
 	
-	-- Update SpellTab/TalentTab Frames
+	-- Update SpellTab/TalentTab/GlyphTab Frames
 	for iClassIndex = 1, CLClassCount do
 		self.m_arrSpellTabFrames[iClassIndex]:Update()
 		self.m_arrTalentTabFrames[iClassIndex]:Update()
+		self.m_arrGlyphTabFrames[iClassIndex]:Update()
 	end
 end
 
@@ -188,7 +191,7 @@ function ClassLessMainFrame:Initialize()
         end
     )
 	
-	-- Spell/Talent Points
+	-- Spell/Talent Points / Glyph Slots
 	self.m_hMainPointsFrame = ClassLessMainPointsFrame()
 	self.m_hMainPointsFrame:Initialize( self.m_hFrame )
 	
@@ -197,11 +200,11 @@ function ClassLessMainFrame:Initialize()
 	self.m_hMainButtonsFrame:Initialize( self.m_hFrame )
 	
 	-- Tabs Buttons
-	local arrNames = { "CLSpellTabButton", "CLTalentTabButton" }
-	local arrToolTipTexts = { "Spell Manager", "Talent Manager" }
-	local arrTextures = { "Interface\\Icons\\INV_Misc_Book_07", "Interface\\Icons\\INV_Misc_Book_11" }
+	local arrNames = { "CLSpellTabButton", "CLTalentTabButton", "CLGlyphTabButton" }
+	local arrToolTipTexts = { "Spell Manager", "Talent Manager", "Glyph Manager" }
+	local arrTextures = { "Interface\\Icons\\INV_Misc_Book_07", "Interface\\Icons\\INV_Misc_Book_11", "Interface\\Icons\\INV_Misc_Book_10" }
 	
-	for i = 1, 2 do
+	for i = 1, 3 do
 		-- Tab Button
 		self.m_arrTabButtons[i] = CreateFrame( "Button", arrNames[i], self.m_hFrame )
 	
@@ -341,13 +344,16 @@ function ClassLessMainFrame:Initialize()
 		)
 	end
 	
-	-- SpellTab/TalentTab Frames
+	-- SpellTab/TalentTab/GlyphTab Frames
 	for iClassIndex = 1, CLClassCount do
 		self.m_arrSpellTabFrames[iClassIndex] = ClassLessSpellTabFrame()
 		self.m_arrSpellTabFrames[iClassIndex]:Initialize( self.m_hFrame, iClassIndex )
 		
 		self.m_arrTalentTabFrames[iClassIndex] = ClassLessTalentTabFrame()
 		self.m_arrTalentTabFrames[iClassIndex]:Initialize( self.m_hFrame, iClassIndex )
+		
+		self.m_arrGlyphTabFrames[iClassIndex] = ClassLessGlyphTabFrame()
+		self.m_arrGlyphTabFrames[iClassIndex]:Initialize( self.m_hFrame, iClassIndex )
 	end
 	
 	print( "CLMainFrame Initialized !" )

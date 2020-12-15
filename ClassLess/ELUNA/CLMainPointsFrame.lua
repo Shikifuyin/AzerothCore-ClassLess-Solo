@@ -42,15 +42,14 @@ function ClassLessMainPointsFrame:init()
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessMainPointsFrame : Getters / Setters
-
--------------------------------------------------------------------------------------------------------------------
 -- ClassLessMainPointsFrame : Methods
 function ClassLessMainPointsFrame:Update()
 	local iSpellPoints = CLClient:GetRemainingSpellPoints()
 	local iTalentPoints = CLClient:GetRemainingTalentPoints()
+	local iGlyphMajorSlots = CLClient:GetRemainingGlyphMajorSlots()
+	local iGlyphMinorSlots = CLClient:GetRemainingGlyphMinorSlots()
 	
-	self.m_hText:SetText( "Remaining Points : " .. iSpellPoints .. " SP / " .. iTalentPoints .. " TP" )
+	self.m_hText:SetText( "Remaining Points/Slots : " .. iSpellPoints .. " SP / " .. iTalentPoints .. " TP / " .. iGlyphMajorSlots .. " Major / " .. iGlyphMinorSlots .. " Minor" )
 end
 
 -------------------------------------------------------------------------------------------------------------------
