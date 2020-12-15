@@ -163,8 +163,8 @@ function ClassLessDataGlyphs:SearchGlyph( iGlyphID )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataSpells : Initialization
-function ClassLessDataSpells:Initialize()
+-- ClassLessDataGlyphs : Initialization
+function ClassLessDataGlyphs:Initialize()
 	if ( self.m_arrGlyphs ~= nil ) then
 		return
 	end

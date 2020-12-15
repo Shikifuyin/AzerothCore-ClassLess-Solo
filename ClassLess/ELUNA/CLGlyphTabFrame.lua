@@ -36,8 +36,8 @@ function ClassLessGlyphTabFrame:init()
 	self.m_iSpecAreaTitleHeight = 32
 	
 	self.m_iSpecAreaSpacing = 10
-	self.m_iSpecAreaWidth = self.m_iSpellButtonsSize * self.m_iSpellButtonsPerRow + self.m_iSpellButtonsSpacing * (self.m_iSpellButtonsPerRow + 1)
-	self.m_iSpecAreaHeight = self.m_iSpellButtonsSize * 11 + self.m_iSpellButtonsSpacing * 12 + self.m_iSpecAreaTitleHeight
+	self.m_iSpecAreaWidth = self.m_iGlyphButtonsSize * self.m_iGlyphButtonsPerRow + self.m_iGlyphButtonsSpacing * (self.m_iGlyphButtonsPerRow + 1)
+	self.m_iSpecAreaHeight = self.m_iGlyphButtonsSize * 11 + self.m_iGlyphButtonsSpacing * 12 + self.m_iSpecAreaTitleHeight
 	
 	self.m_iWidth = self.m_iSpecAreaWidth * CLClassSpecCount + self.m_iSpecAreaSpacing * (CLClassSpecCount + 1)
 	self.m_iHeight = self.m_iSpecAreaHeight
@@ -213,7 +213,7 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
 		self.m_arrSpecFrames[iSpecIndex].title.text:SetJustifyV( "MIDDLE" )
 		self.m_arrSpecFrames[iSpecIndex].title.text:SetJustifyH( "MIDDLE" )
 		self.m_arrSpecFrames[iSpecIndex].title.text:SetPoint( "CENTER", self.m_arrSpecFrames[iSpecIndex].title, "CENTER", 0, 0 )
-		self.m_arrSpecFrames[iSpecIndex].title.text:SetText( hDataSpells:GetClassSpecName(self.m_iClassIndex, iSpecIndex) )
+		self.m_arrSpecFrames[iSpecIndex].title.text:SetText( hDataGlyphs:GetClassSpecName(self.m_iClassIndex, iSpecIndex) )
 		
 		-- Setup Button array
 		self.m_arrGlyphButtons[iSpecIndex] = {}

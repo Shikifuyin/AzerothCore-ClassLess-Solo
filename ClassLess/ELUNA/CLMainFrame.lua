@@ -94,7 +94,7 @@ function ClassLessMainFrame:SwitchTab( iTabIndex, iClassIndex )
 		self.m_arrSpellTabFrames[iClassIndex]:Show()
 	elseif ( iTabIndex == 2 ) then
 		self.m_arrTalentTabFrames[iClassIndex]:Show()
-	elseif ( iTabIndex == 2=3 ) then
+	elseif ( iTabIndex == 3 ) then
 		self.m_arrGlyphTabFrames[iClassIndex]:Show()
 	end
 	

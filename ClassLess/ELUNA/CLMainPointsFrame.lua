@@ -29,7 +29,7 @@ ClassLessMainPointsFrame = class({
 
 function ClassLessMainPointsFrame:init()
 	-- Members
-	self.m_iWidth = 200
+	self.m_iWidth = 400
 	self.m_iHeight = 32
 	self.m_strPositionAnchor = "BOTTOMLEFT"
 	self.m_iPositionX = 10
