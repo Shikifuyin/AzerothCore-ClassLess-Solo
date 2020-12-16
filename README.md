@@ -25,8 +25,8 @@ Any AzerothCore build/repack with eluna support.
 Should also work on Trinity with a very slight change (ask me if you need help).
 
 Requirements :
-Eluna : http://elunaluaengine.github.io/index.html
-AIO from Rochet2 : https://github.com/Rochet2/AIO
+- Eluna : http://elunaluaengine.github.io/index.html
+- AIO : https://github.com/Rochet2/AIO
 
 Installation :
 - Make sure you have AIO installed (both server-side and client-side) and AIO addon is enabled in your client.
