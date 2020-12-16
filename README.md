@@ -15,13 +15,13 @@ Work In Progress :
 - Generic Class
 - Extensive testing of all Spells/Talents/Glyphs and interactions
 - Stat Allocation system ?
-Some of those most likely require C++ core edits, hence a custom build.
+- Some of those most likely require C++ core edits, hence a custom build.
 As much as possible I want this to be compatible with any azerothcore-based
 repack for now ...
 
 Compatibility :
-Any AzerothCore build/repack with eluna support.
-Should also work on Trinity with a very slight change (ask me if you need help).
+- Any AzerothCore build/repack with Eluna support.
+- Should also work on Trinity with a very slight change (ask me if you need help).
 
 Requirements :
 - Eluna : http://elunaluaengine.github.io/index.html
@@ -34,17 +34,16 @@ Installation :
 - Copy the source files in ClassLess/ELUNA in the eluna script folder of your server, in a subdirectory of your choice (eg. 'ClassLess').
 - Done !
 
-Configuration :
-- You can alter a few settings at the very top of CLServer.lua :
-- CLCONFIG_SPELL_POINTS_RATE (default = 1)
+Configuration : You can alter a few settings at the very top of CLServer.lua
+- CLCONFIG_SPELL_POINTS_RATE (default = 1) =
 Number of Spell Points you gain per level
-- CLCONFIG_TALENT_POINTS_RATE (default = 1)
+- CLCONFIG_TALENT_POINTS_RATE (default = 1) =
 Talent Points rate, MUST match your worldserver config file
-- CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER (default = 5)
+- CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER (default = 5) =
 Number of talent points to progress down talent tiers
-- CLCONFIG_GLYPH_MAJOR_SLOTS_RATE and CLCONFIG_GLYPH_MINOR_SLOTS_RATE (default = 1)
+- CLCONFIG_GLYPH_MAJOR_SLOTS_RATE and CLCONFIG_GLYPH_MINOR_SLOTS_RATE (default = 1) =
 Major/Minor Glyph Slots progression rate
-- CLCONFIG_RESET_PRICES
+- CLCONFIG_RESET_PRICES =
 Sequence of cost increase when resetting Spells/Talents/Glyphs
 
 Notes :
