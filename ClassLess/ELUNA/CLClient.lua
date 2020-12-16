@@ -108,6 +108,14 @@ function ClassLessClient:ResetAbilities()
 	self.m_arrPendingGlyphs = {}
 end
 
+function ClassLessClient:GetAbilityLink( iAbilityID )
+	local strLink = GetSpellLink( iAbilityID )
+	if ( strLink == nil or strLink == "" ) then
+		strLink = string.format( "|cff71d5ff|Hspell:%d:|h[%s]|h|r", iAbilityID, GetSpellInfo(iAbilityID) )
+	end
+	return strLink
+end
+
 -------------------------------------------------------------------------------------------------------------------
 -- ClassLessClient : Methods - Spells
 function ClassLessClient:GetDataSpells()

@@ -280,7 +280,7 @@ function ClassLessSpellTabFrame:Initialize( hParentFrame, iClassIndex )
 					hSpellDesc:SetCurrentRank( iRank )
 					local iSpellID = hSpellDesc:GetCurrentSpellID()
 					local iSpellLevel = hSpellDesc:GetCurrentSpellLevel()
-					local strLink = GetSpellLink( iSpellID )
+					local strLink = CLClient:GetAbilityLink( iSpellID )
 					
 					-- Build ToolTip
 					hToolTip:SetHyperlink( strLink )

@@ -273,7 +273,7 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
 					local iGlyphID = hGlyphDesc:GetGlyphID()
 					local iGlyphLevel = hGlyphDesc:GetGlyphLevel()
 					local bIsMajor = hGlyphDesc:IsMajor()
-					local strLink = GetSpellLink( iGlyphID )
+					local strLink = CLClient:GetAbilityLink( iGlyphID )
 					
 					-- Build ToolTip
 					hToolTip:SetHyperlink( strLink )

@@ -348,7 +348,7 @@ function ClassLessTalentTabFrame:Initialize( hParentFrame, iClassIndex )
 								hTalentDesc:SetCurrentRank( iRank )
 								local iTalentID = hTalentDesc:GetCurrentTalentID()
 								local iTalentSpellLevel = hTalentDesc:GetCurrentTalentSpellLevel()
-								local strLink = GetSpellLink( iTalentID )
+								local strLink = CLClient:GetAbilityLink( iTalentID )
 								
 								-- Build ToolTip
 								hToolTip:SetHyperlink( strLink )
@@ -373,7 +373,7 @@ function ClassLessTalentTabFrame:Initialize( hParentFrame, iClassIndex )
 								
 								hTalentDesc:SetCurrentRank( iRank )
 								local iTalentID = hTalentDesc:GetCurrentTalentID()
-								local strLink = string.format( "|cff71d5ff|Hspell:%d:|h[%s]|h|r", iTalentID, GetSpellInfo(iTalentID) )
+								local strLink = CLClient:GetAbilityLink( iTalentID )
 								
 								-- Build ToolTip
 								hToolTip:SetHyperlink( strLink )
