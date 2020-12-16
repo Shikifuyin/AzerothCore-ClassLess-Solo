@@ -6,7 +6,6 @@ Current Features :
 - Server Spell/Talent/Glyph manager (ELUNA)
 - Client UI (ELUNA)
 - Secured against client-side tempering !
-- Need for extensive testing ... (especially DK and Spells/Talents involving shapeshifting)
 
 Work In Progress :
 - Add Pet support (ELUNA)
@@ -31,6 +30,7 @@ Requirements :
 Installation :
 - Make sure you have AIO installed (both server-side and client-side) and AIO addon is enabled in your client.
 - Make sure your SQL server is running and execute ClassLess/SQL/CLCreateTable.sql on your characters DB.
+(Alternatively you can manually add the table by pasting the SQL in your favorite editor, HeidiSQL is a solid choice !)
 - Copy the source files in ClassLess/ELUNA in the eluna script folder of your server, in a subdirectory of your choice (eg. 'ClassLess').
 - Done !
 
@@ -42,8 +42,8 @@ Number of Spell Points you gain per level
 Talent Points rate, MUST match your worldserver config file
 - CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER (default = 5)
 Number of talent points to progress down talent tiers
-- CLCONFIG_GLYPH_MAJOR_SLOT_COUNTS and CLCONFIG_GLYPH_MINOR_SLOT_COUNTS
-Number of available Major/Minor Glyph Slots every 10th level
+- CLCONFIG_GLYPH_MAJOR_SLOTS_RATE and CLCONFIG_GLYPH_MINOR_SLOTS_RATE (default = 1)
+Major/Minor Glyph Slots progression rate
 - CLCONFIG_RESET_PRICES
 Sequence of cost increase when resetting Spells/Talents/Glyphs
 

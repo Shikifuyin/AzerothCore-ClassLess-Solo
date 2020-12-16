@@ -22,8 +22,8 @@ if not class then require("class") end
 CLCONFIG_SPELL_POINTS_RATE = 1.0
 CLCONFIG_TALENT_POINTS_RATE = 1.0
 CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER = 5
-CLCONFIG_GLYPH_MAJOR_SLOT_COUNTS = { 0,0,0,0,1,1,2,2,3 } -- slot count for level 0,10,20,30,40,50,60,70,80
-CLCONFIG_GLYPH_MINOR_SLOT_COUNTS = { 0,0,0,1,1,2,2,3,3 } -- slot count for level 0,10,20,30,40,50,60,70,80
+CLCONFIG_GLYPH_MAJOR_SLOTS_RATE = 1.0
+CLCONFIG_GLYPH_MINOR_SLOTS_RATE = 1.0
 CLCONFIG_RESET_PRICES = { 10000, 50000, 100000, 150000, 200000, 350000 } -- in copper, any number of values
 
 -------------------------------------------------------------------------------------------------------------------
@@ -44,8 +44,8 @@ function ClassLessServer:init()
 	self.m_fSpellPointsRate = CLCONFIG_SPELL_POINTS_RATE
 	self.m_fTalentPointsRate = CLCONFIG_TALENT_POINTS_RATE
 	self.m_iRequiredTalentPointsPerTier = CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER
-	self.m_arrGlyphMajorSlotCount = CLCONFIG_GLYPH_MAJOR_SLOT_COUNTS
-	self.m_arrGlyphMinorSlotCount = CLCONFIG_GLYPH_MINOR_SLOT_COUNTS
+	self.m_fGlyphMajorSlotsRate = CLCONFIG_GLYPH_MAJOR_SLOTS_RATE
+	self.m_fGlyphMinorSlotsRate = CLCONFIG_GLYPH_MINOR_SLOTS_RATE
 	self.m_arrResetPrices = CLCONFIG_RESET_PRICES
 	
 	-- Spell/Talent/Glyph Data
@@ -138,10 +138,10 @@ function ClassLessServer:GetPlayerGlyphs( hPlayer )
 end
 
 function ClassLessServer:GetTotalGlyphMajorSlots( hPlayer )
-	return self.m_arrGlyphMajorSlotCount[1 + math.floor(hPlayer:GetLevel() / 10)]
+	return math.floor( ( (hPlayer:GetLevel() + 17.5) / 32.5 ) * self.m_fGlyphMajorSlotsRate )
 end
 function ClassLessServer:GetTotalGlyphMinorSlots( hPlayer )
-	return self.m_arrGlyphMinorSlotCount[1 + math.floor(hPlayer:GetLevel() / 10)]
+	return math.floor( ( (hPlayer:GetLevel() + 12.5) / 27.5 ) * self.m_fGlyphMinorSlotsRate )
 end
 function ClassLessServer:GetAllocatedGlyphMajorSlots( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
