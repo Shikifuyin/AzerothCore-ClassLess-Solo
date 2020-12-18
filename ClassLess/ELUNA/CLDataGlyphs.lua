@@ -9,6 +9,7 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLGlyphDesc then require("CLMapGlyphs") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -19,103 +20,18 @@ if AIO.IsServer() then
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- Constants
-if ( CLClassCount == nil ) then
-	CLClassCount = 10
-end
-if ( CLClassNames == nil ) then
-	CLClassNames = { "DeathKnight", "Druid", "Hunter", "Mage", "Paladin", "Priest", "Rogue", "Shaman", "Warlock", "Warrior" }
-end
-
-if ( CLClassSpecCount == nil ) then
-	CLClassSpecCount = 3
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphDesc - Declaration
-ClassLessGlyphDesc = class({
+-- CLDataGlyphs : Declaration
+CLDataGlyphs = class({
 	-- Static Members
+	sm_hInstance = nil
 })
-
-function ClassLessGlyphDesc:init( iClassIndex, iSpecIndex, iGlyphIndex, iGlyphID, iGlyphLevel, bIsMajor )
-	-- Members
-	self.m_iClassIndex = iClassIndex
-	self.m_iSpecIndex = iSpecIndex
-	self.m_iGlyphIndex = iGlyphIndex
-	
-	self.m_iGlyphID = iGlyphID
-	self.m_iGlyphLevel = iGlyphLevel
-	self.m_bIsMajor = bIsMajor
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphDesc : Encoding / Decoding
-function ClassLessGlyphDesc:ToArray( hGlyphDesc )
-	return {
-		hGlyphDesc.m_iClassIndex, hGlyphDesc.m_iSpecIndex, hGlyphDesc.m_iGlyphIndex,
-		hGlyphDesc.m_iGlyphID, hGlyphDesc.m_iGlyphLevel, hGlyphDesc.m_bIsMajor
-	}
-end
-function ClassLessGlyphDesc:FromArray( arrGlyphDesc )
-	local hGlyphDesc = ClassLessGlyphDesc(
-		arrGlyphDesc[1], arrGlyphDesc[2], arrGlyphDesc[3],
-		arrGlyphDesc[4], arrGlyphDesc[5], arrGlyphDesc[6]
-	)
-	return hGlyphDesc
-end
-
-function ClassLessGlyphDesc:EncodeGlyphs( arrGlyphs )
-	local arrEncodedGlyphs = {}
-	for i = 1, #arrGlyphs do
-		arrEncodedGlyphs[i] = ClassLessGlyphDesc:ToArray( arrGlyphs[i] )
+function CLDataGlyphs:GetInstance()
+	if ( self.sm_hInstance == nil ) then
+		self.sm_hInstance = CLDataGlyphs()
+		self.sm_hInstance:Initialize()
 	end
-	return arrEncodedGlyphs
+	return self.sm_hInstance
 end
-function ClassLessGlyphDesc:DecodeGlyphs( arrGlyphs )
-	local arrDecodedGlyphs = {}
-	for i = 1, #arrGlyphs do
-		arrDecodedGlyphs[i] = ClassLessGlyphDesc:FromArray( arrGlyphs[i] )
-	end
-	return arrDecodedGlyphs
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphDesc : Getters / Setters
-function ClassLessGlyphDesc:GetClassIndex()
-	return self.m_iClassIndex
-end
-function ClassLessGlyphDesc:GetSpecIndex()
-	return self.m_iSpecIndex
-end
-function ClassLessGlyphDesc:GetGlyphIndex()
-	return self.m_iGlyphIndex
-end
-
-function ClassLessGlyphDesc:GetGlyphID()
-	return self.m_iGlyphID
-end
-function ClassLessGlyphDesc:GetGlyphLevel()
-	return self.m_iGlyphLevel
-end
-function ClassLessGlyphDesc:IsMajor()
-	return self.m_bIsMajor
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphDesc : Methods
-function ClassLessGlyphDesc:GetIcon()
-	local strType = "Minor"
-	if ( self.m_bIsMajor ) then
-		strType = "Major"
-	end
-	return "Interface\\Icons\\Inv_Glyph_" .. strType .. CLClassNames[self.m_iClassIndex]
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessDataGlyphs : Declaration
-ClassLessDataGlyphs = class({
-	-- Static Members
-})
 
 -- Format :
 -- m_arrGlyphs[classname][specindex] = {
@@ -123,26 +39,26 @@ ClassLessDataGlyphs = class({
 --     	[2] - string : spectexture
 --		[3] - array( iGlyphIndex -> {iGlyphID, iGlyphLevel, bIsMajor} )
 -- }
-function ClassLessDataGlyphs:init()
+function CLDataGlyphs:init()
 	-- Members
 	self.m_arrGlyphs = nil
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataGlyphs : Getters / Setters
-function ClassLessDataGlyphs:GetClassSpecName( iClassIndex, iSpecIndex )
+-- CLDataGlyphs : Getters / Setters
+function CLDataGlyphs:GetClassSpecName( iClassIndex, iSpecIndex )
 	return self.m_arrGlyphs[CLClassNames[iClassIndex]][iSpecIndex][1]
 end
-function ClassLessDataGlyphs:GetClassSpecTexture( iClassIndex, iSpecIndex )
+function CLDataGlyphs:GetClassSpecTexture( iClassIndex, iSpecIndex )
 	return self.m_arrGlyphs[CLClassNames[iClassIndex]][iSpecIndex][2]
 end
 
-function ClassLessDataGlyphs:GetGlyphCount( iClassIndex, iSpecIndex )
+function CLDataGlyphs:GetGlyphCount( iClassIndex, iSpecIndex )
 	return #( self.m_arrGlyphs[CLClassNames[iClassIndex]][iSpecIndex][3] )
 end
 
-function ClassLessDataGlyphs:GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
-	return ClassLessGlyphDesc(
+function CLDataGlyphs:GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
+	return CLGlyphDesc(
 		iClassIndex, iSpecIndex, iGlyphIndex,
 		self.m_arrGlyphs[CLClassNames[iClassIndex]][iSpecIndex][3][iGlyphIndex][1],
 		self.m_arrGlyphs[CLClassNames[iClassIndex]][iSpecIndex][3][iGlyphIndex][2],
@@ -150,7 +66,7 @@ function ClassLessDataGlyphs:GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex 
 	)
 end
 
-function ClassLessDataGlyphs:SearchGlyph( iGlyphID )
+function CLDataGlyphs:SearchGlyph( iGlyphID )
 	for iClassIndex = 1, CLClassCount do
 		for iSpecIndex = 1, CLClassSpecCount do
 			local iGlyphCount = self:GetGlyphCount( iClassIndex, iSpecIndex )
@@ -166,8 +82,8 @@ function ClassLessDataGlyphs:SearchGlyph( iGlyphID )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataGlyphs : Initialization
-function ClassLessDataGlyphs:Initialize()
+-- CLDataGlyphs : Initialization
+function CLDataGlyphs:Initialize()
 	if ( self.m_arrGlyphs ~= nil ) then
 		return
 	end
@@ -676,6 +592,25 @@ function ClassLessDataGlyphs:Initialize()
 				{63325,60,1},
 				{63328,64,1},
 				{58377,70,1}
+			}
+		}
+	}
+	
+	-- Pet
+	self.m_arrGlyphs.Pet = {
+		{
+			"Cunning", "Interface\\TalentFrame\\HunterPetCunning", {
+				--{0,0,0},
+			}
+		},
+		{
+			"Ferocity", "Interface\\TalentFrame\\HunterPetFerocity", {
+				--{0,0,0},
+			}
+		},
+		{
+			"Tenacity", "Interface\\TalentFrame\\HunterPetTenacity", {
+				--{0,0,0},
 			}
 		}
 	}

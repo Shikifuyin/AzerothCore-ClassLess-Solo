@@ -9,6 +9,9 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLDataSpells then require("CLDataSpells") end
+if not CLDataTalents then require("CLDataTalents") end
+if not CLDataGlyphs then require("CLDataGlyphs") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -22,12 +25,20 @@ end
 -- Constants
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessClient - Declaration
-ClassLessClient = class({
+-- CLClient - Declaration
+CLClient = class({
 	-- Static Members
+	sm_hInstance = nil
 })
+function CLClient:GetInstance()
+	if ( self.sm_hInstance == nil ) then
+		self.sm_hInstance = CLClient()
+		self.sm_hInstance:Initialize()
+	end
+	return self.sm_hInstance
+end
 
-function ClassLessClient:init()
+function CLClient:init()
 	-- Session Token
 	self.m_strClientToken = nil
 	
@@ -37,78 +48,74 @@ function ClassLessClient:init()
 	
 	-- Server Data (Read-Only !)
 	self.m_iFreeSpellPoints = nil
+	self.m_iFreePetSpellPoints = nil
 	self.m_iFreeTalentPoints = nil
+	self.m_iFreePetTalentPoints = nil
 	self.m_iRequiredTalentPointsPerTier = nil
+	self.m_iRequiredPetTalentPointsPerTier = nil
 	self.m_iFreeGlyphMajorSlots = nil
 	self.m_iFreeGlyphMinorSlots = nil
 	self.m_iResetCost = nil
 	
-	self.m_arrKnownSpells = nil
-	self.m_arrKnownTalents = nil
-	self.m_arrKnownGlyphs = nil
+	self.m_mapKnownSpells = CLSpellMap()
+	self.m_mapKnownTalents = CLTalentMap()
+	self.m_mapKnownGlyphs = CLGlyphMap()
 	
 	-- Client Data
-	self.m_hCLDataSpells = nil
-	self.m_hCLDataTalents = nil
-	self.m_hCLDataGlyphs = nil
-	
-	self.m_arrPendingSpells = {}
-	self.m_arrPendingTalents = {}
-	self.m_arrPendingGlyphs = {}
+	self.m_mapPendingSpells = CLSpellMap()
+	self.m_mapPendingTalents = CLTalentMap()
+	self.m_mapPendingGlyphs = CLGlyphMap()
 
 	-- UI
-	self.m_hCLMainButton = nil
-	self.m_hCLMainFrame = nil
-	self.m_hCLMainToolTip = nil
+	self.m_hCLUIToolTip = nil
+	self.m_hCLUIMainFrame = nil
+	self.m_hCLUIMainButton = nil
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessClient : Methods - General
-function ClassLessClient:GetResetCost()
+-- CLClient : Methods - General
+function CLClient:GetResetCost()
 	return self.m_iResetCost
 end
 
-function ClassLessClient:GetMainFrame()
-	return self.m_hCLMainFrame
+function CLClient:GetToolTip()
+	return self.m_hCLUIToolTip
 end
-function ClassLessClient:GetMainToolTip()
-	return self.m_hCLMainToolTip
-end
-function ClassLessClient:GetMainPointsFrame()
-	return self.m_hCLMainFrame.m_hMainPointsFrame
+function CLClient:GetMainFrame()
+	return self.m_hCLUIMainFrame
 end
 
-function ClassLessClient:ApplyAbilities()
+function CLClient:ApplyAbilities()
 	-- Server-side : Call CommitAbilities
 	AIO.Handle( self.m_strAIOHandlerName, "CommitAbilities",
-		ClassLessSpellDesc:EncodeSpells( self.m_arrPendingSpells ),
-		ClassLessTalentDesc:EncodeTalents( self.m_arrPendingTalents ),
-		ClassLessGlyphDesc:EncodeGlyphs( self.m_arrPendingGlyphs ),
+		self.m_mapPendingSpells:Encode(),
+		self.m_mapPendingTalents:Encode(),
+		self.m_mapPendingGlyphs:Encode(),
 		self.m_strClientToken
 	)
 	
 	-- Flush Pending Abilities
-	self.m_arrPendingSpells = {}
-	self.m_arrPendingTalents = {}
-	self.m_arrPendingGlyphs = {}
+	self.m_mapPendingSpells:Clear()
+	self.m_mapPendingTalents:Clear()
+	self.m_mapPendingGlyphs:Clear()
 end
-function ClassLessClient:CancelAbilities()
+function CLClient:CancelAbilities()
 	-- Flush Pending Abilities
-	self.m_arrPendingSpells = {}
-	self.m_arrPendingTalents = {}
-	self.m_arrPendingGlyphs = {}
+	self.m_mapPendingSpells:Clear()
+	self.m_mapPendingTalents:Clear()
+	self.m_mapPendingGlyphs:Clear()
 end
-function ClassLessClient:ResetAbilities()
+function CLClient:ResetAbilities()
 	-- Server-side : Call ResetAbilities
 	AIO.Handle( self.m_strAIOHandlerName, "ResetAbilities", self.m_strClientToken )
 	
 	-- Flush Pending Abilities
-	self.m_arrPendingSpells = {}
-	self.m_arrPendingTalents = {}
-	self.m_arrPendingGlyphs = {}
+	self.m_mapPendingSpells:Clear()
+	self.m_mapPendingTalents:Clear()
+	self.m_mapPendingGlyphs:Clear()
 end
 
-function ClassLessClient:GetAbilityLink( iAbilityID )
+function CLClient:GetAbilityLink( iAbilityID )
 	local strLink = GetSpellLink( iAbilityID )
 	if ( strLink == nil or strLink == "" ) then
 		strLink = string.format( "|cff71d5ff|Hspell:%d:|h[%s]|h|r", iAbilityID, GetSpellInfo(iAbilityID) )
@@ -117,85 +124,57 @@ function ClassLessClient:GetAbilityLink( iAbilityID )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessClient : Methods - Spells
-function ClassLessClient:GetDataSpells()
-	return self.m_hCLDataSpells
+-- CLClient : Methods - Spells
+function CLClient:GetKnownSpells()
+	return self.m_mapKnownSpells
+end
+function CLClient:GetPendingSpells()
+	return self.m_mapPendingSpells
 end
 
-function ClassLessClient:GetKnownSpellCount()
-	return #( self.m_arrKnownSpells )
-end
-function ClassLessClient:GetKnownSpellDesc( iIndex )
-	return self.m_arrKnownSpells[iIndex]
-end
-
-function ClassLessClient:IsSpellKnown( iClassIndex, iSpecIndex, iSpellIndex )
-	return ( self:GetKnownSpellIndex(iClassIndex, iSpecIndex, iSpellIndex) ~= 0 )
-end
-
-function ClassLessClient:GetKnownSpellIndex( iClassIndex, iSpecIndex, iSpellIndex )
-	local iSpellCount = self:GetKnownSpellCount()
-	for i = 1, iSpellCount do
-		local hSpellDesc = self:GetKnownSpellDesc( i )
-		if ( iClassIndex == hSpellDesc:GetClassIndex() and iSpecIndex == hSpellDesc:GetSpecIndex() and
-			 iSpellIndex == hSpellDesc:GetSpellIndex() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessClient:GetPendingSpellCount()
-	return #( self.m_arrPendingSpells )
-end
-function ClassLessClient:GetPendingSpellDesc( iIndex )
-	return self.m_arrPendingSpells[iIndex]
-end
-
-function ClassLessClient:IsSpellPending( iClassIndex, iSpecIndex, iSpellIndex )
-	return ( self:GetPendingSpellIndex(iClassIndex, iSpecIndex, iSpellIndex) ~= 0 )
-end
-
-function ClassLessClient:GetPendingSpellIndex( iClassIndex, iSpecIndex, iSpellIndex )
-	local iSpellCount = self:GetPendingSpellCount()
-	for i = 1, iSpellCount do
-		local hSpellDesc = self:GetPendingSpellDesc( i )
-		if ( iClassIndex == hSpellDesc:GetClassIndex() and iSpecIndex == hSpellDesc:GetSpecIndex() and
-			 iSpellIndex == hSpellDesc:GetSpellIndex() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessClient:GetFreeSpellPoints()
+function CLClient:GetFreeSpellPoints()
 	return self.m_iFreeSpellPoints
 end
-function ClassLessClient:GetSpentSpellPoints()
-	return self:GetPendingSpellCount()
+function CLClient:GetFreePetSpellPoints()
+	return self.m_iFreePetSpellPoints
 end
-function ClassLessClient:GetRemainingSpellPoints()
+function CLClient:GetSpentSpellPoints()
+	return self.m_mapPendingSpells:GetSpellPoints()
+end
+function CLClient:GetSpentPetSpellPoints()
+	return self.m_mapPendingSpells:GetPetSpellPoints()
+end
+function CLClient:GetRemainingSpellPoints()
 	return ( self:GetFreeSpellPoints() - self:GetSpentSpellPoints() )
 end
+function CLClient:GetRemainingPetSpellPoints()
+	return ( self:GetFreePetSpellPoints() - self:GetSpentPetSpellPoints() )
+end
 
-function ClassLessClient:AddPendingSpell( iClassIndex, iSpecIndex, iSpellIndex )
+function CLClient:AddPendingSpell( iClassIndex, iSpecIndex, iSpellIndex )
+	-- Get Spell Descriptor
+	local hSpellDesc = CLDataSpells:GetInstance():GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
+	
 	-- Check if we have enough points
-	if ( self:GetRemainingSpellPoints() <= 0 ) then
-		return
+	if hSpellDesc:IsPetSpell() then
+		if ( self:GetRemainingPetSpellPoints() <= 0 ) then
+			return
+		end
+	else
+		if ( self:GetRemainingSpellPoints() <= 0 ) then
+			return
+		end
 	end
 	
 	-- Check if Spell is pending
-	if self:IsSpellPending(iClassIndex, iSpecIndex, iSpellIndex) then
+	if self.m_mapPendingSpells:HasSpell( iClassIndex, iSpecIndex, iSpellIndex ) then
 		return
 	end
 	
 	-- Check if Spell is known
-	if self:IsSpellKnown(iClassIndex, iSpecIndex, iSpellIndex) then
+	if self.m_mapKnownSpells:HasSpell( iClassIndex, iSpecIndex, iSpellIndex ) then
 		return
 	end
-	
-	-- Get Spell Descriptor
-	local hSpellDesc = self.m_hCLDataSpells:GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
 	
 	-- Apply appropriate Rank
 	local iRank = hSpellDesc:GetRankFromLevel( UnitLevel("player") )
@@ -205,137 +184,144 @@ function ClassLessClient:AddPendingSpell( iClassIndex, iSpecIndex, iSpellIndex )
 	hSpellDesc:SetCurrentRank( iRank )
 	
 	-- Add Spell
-	table.insert( self.m_arrPendingSpells, hSpellDesc )
+	self.m_mapPendingSpells:AddSpell( hSpellDesc )
 end
-function ClassLessClient:RemovePendingSpell( iClassIndex, iSpecIndex, iSpellIndex )
-	-- Retrieve Index
-	local iIndex = self:GetPendingSpellIndex( iClassIndex, iSpecIndex, iSpellIndex )
-	if ( iIndex == 0 ) then
-		return
-	end
-	
-	-- Remove Spell
-	table.remove( self.m_arrPendingSpells, iIndex )
+function CLClient:RemovePendingSpell( iClassIndex, iSpecIndex, iSpellIndex )
+	self.m_mapPendingSpells:RemoveSpell( iClassIndex, iSpecIndex, iSpellIndex )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessClient : Methods - Talents
-function ClassLessClient:GetDataTalents()
-	return self.m_hCLDataTalents
+-- CLClient : Methods - Talents
+function CLClient:GetKnownTalents()
+	return self.m_mapKnownTalents
+end
+function CLClient:GetPendingTalents()
+	return self.m_mapPendingTalents
 end
 
-function ClassLessClient:GetKnownTalentCount()
-	return #( self.m_arrKnownTalents )
-end
-function ClassLessClient:GetKnownTalentDesc( iIndex )
-	return self.m_arrKnownTalents[iIndex]
-end
-
-function ClassLessClient:IsTalentKnown( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	return ( self:GetKnownTalentIndex(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ~= 0 )
-end
-
-function ClassLessClient:GetKnownTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	local iTalentCount = self:GetKnownTalentCount()
-	for i = 1, iTalentCount do
-		local hTalentDesc = self:GetKnownTalentDesc( i )
-		if ( iClassIndex == hTalentDesc:GetClassIndex() and iSpecIndex == hTalentDesc:GetSpecIndex() and
-			 iGridTier == hTalentDesc:GetGridTier() and iGridSlot == hTalentDesc:GetGridSlot() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessClient:GetPendingTalentCount()
-	return #( self.m_arrPendingTalents )
-end
-function ClassLessClient:GetPendingTalentDesc( iIndex )
-	return self.m_arrPendingTalents[iIndex]
-end
-
-function ClassLessClient:IsTalentPending( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	return ( self:GetPendingTalentIndex(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ~= 0 )
-end
-
-function ClassLessClient:GetPendingTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	local iTalentCount = self:GetPendingTalentCount()
-	for i = 1, iTalentCount do
-		local hTalentDesc = self:GetPendingTalentDesc( i )
-		if ( iClassIndex == hTalentDesc:GetClassIndex() and iSpecIndex == hTalentDesc:GetSpecIndex() and
-			 iGridTier == hTalentDesc:GetGridTier() and iGridSlot == hTalentDesc:GetGridSlot() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessClient:GetFreeTalentPoints()
+function CLClient:GetFreeTalentPoints()
 	return self.m_iFreeTalentPoints
 end
-function ClassLessClient:GetSpentTalentPoints()
+function CLClient:GetFreePetTalentPoints()
+	return self.m_iFreePetTalentPoints
+end
+function CLClient:GetSpentTalentPoints()
 	local iSpentTalentPoints = 0
-	local iTalentCount = self:GetPendingTalentCount()
-	for i = 1, iTalentCount do
-		local hTalentDesc = self:GetPendingTalentDesc( i )
-		if ( hTalentDesc:IsTalentSpell() ) then
-			iSpentTalentPoints = iSpentTalentPoints + 1
-		else
-			local iPendingRank = hTalentDesc:GetCurrentRank()
-			local iKnownRank = 0
-			local iKnownIndex = self:GetKnownTalentIndex( hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
-														  hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot() )
-			if ( iKnownIndex ~= 0 ) then
-				iKnownRank = self:GetKnownTalentDesc(iKnownIndex):GetCurrentRank()
+	self.m_mapPendingTalents:EnumCallback(
+		function( hTalentDesc )
+			if hTalentDesc:IsPetTalent() then
+				return
 			end
-			iSpentTalentPoints = iSpentTalentPoints + (iPendingRank - iKnownRank)
+			if hTalentDesc:IsTalentSpell() then
+				iSpentTalentPoints = iSpentTalentPoints + hTalentDesc:GetCost()
+				return
+			end
+			local iPendingCost = hTalentDesc:GetCost()
+			local iKnownCost = 0
+			if ( self.m_mapKnownTalents:HasTalent(hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+												  hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot()) ) then
+				iKnownCost = self.m_mapKnownTalents:GetTalentDesc( hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+																   hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot() ):GetCost()
+			end
+			iSpentTalentPoints = iSpentTalentPoints + (iPendingCost - iKnownCost)
 		end
-	end
+	)
 	return iSpentTalentPoints
 end
-function ClassLessClient:GetRemainingTalentPoints()
+function CLClient:GetSpentPetTalentPoints()
+	local iSpentTalentPoints = 0
+	self.m_mapPendingTalents:EnumCallback(
+		function( hTalentDesc )
+			if ( not hTalentDesc:IsPetTalent() ) then
+				return
+			end
+			if hTalentDesc:IsTalentSpell() then
+				iSpentTalentPoints = iSpentTalentPoints + hTalentDesc:GetCost()
+				return
+			end
+			local iPendingCost = hTalentDesc:GetCost()
+			local iKnownCost = 0
+			if ( self.m_mapKnownTalents:HasTalent(hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+												  hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot()) ) then
+				iKnownCost = self.m_mapKnownTalents:GetTalentDesc( hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+																   hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot() ):GetCost()
+			end
+			iSpentTalentPoints = iSpentTalentPoints + (iPendingCost - iKnownCost)
+		end
+	)
+	return iSpentTalentPoints
+end
+function CLClient:GetRemainingTalentPoints()
 	return ( self:GetFreeTalentPoints() - self:GetSpentTalentPoints() )
 end
+function CLClient:GetRemainingPetTalentPoints()
+	return ( self:GetFreePetTalentPoints() - self:GetSpentPetTalentPoints() )
+end
 
-function ClassLessClient:GetRequiredTalentPoints( iGridTier )
+function CLClient:GetRequiredTalentPoints( iGridTier )
 	return ( (iGridTier-1) * self.m_iRequiredTalentPointsPerTier )
 end
-function ClassLessClient:GetSpecAllocatedTalentPoints( iClassIndex, iSpecIndex, iGridTier )
-	local iAllocatedTalentPoints = 0
-	local iKnownTalentCount = self:GetKnownTalentCount()
-	for i = 1, iKnownTalentCount do
-		local hTalentDesc = self:GetKnownTalentDesc( i )
-		if ( hTalentDesc:GetClassIndex() == iClassIndex and hTalentDesc:GetSpecIndex() == iSpecIndex ) then
+function CLClient:GetRequiredPetTalentPoints( iGridTier )
+	return ( (iGridTier-1) * self.m_iRequiredPetTalentPointsPerTier )
+end
+function CLClient:GetSpecSpentTalentPoints( iClassIndex, iSpecIndex, iGridTier )
+	local iSpentTalentPoints = 0
+	
+	self.m_mapKnownTalents:EnumCallback(
+		function( hTalentDesc )
+			if ( hTalentDesc:GetClassIndex() ~= iClassIndex or hTalentDesc:GetSpecIndex() ~= iSpecIndex ) then
+				return
+			end
 			if ( iGridTier == nil or hTalentDesc:GetGridTier() == iGridTier ) then
-				iAllocatedTalentPoints = iAllocatedTalentPoints + hTalentDesc:GetCurrentCost()
+				iSpentTalentPoints = iSpentTalentPoints + hTalentDesc:GetCost()
 			end
 		end
-	end
-	local iPendingTalentCount = self:GetPendingTalentCount()
-	for i = 1, iPendingTalentCount do
-		local hTalentDesc = self:GetPendingTalentDesc( i )
-		if ( hTalentDesc:GetClassIndex() == iClassIndex and hTalentDesc:GetSpecIndex() == iSpecIndex ) then
+	)
+	self.m_mapPendingTalents:EnumCallback(
+		function( hTalentDesc )
+			if ( hTalentDesc:GetClassIndex() ~= iClassIndex or hTalentDesc:GetSpecIndex() ~= iSpecIndex ) then
+				return
+			end
 			if ( iGridTier == nil or hTalentDesc:GetGridTier() == iGridTier ) then
-				iAllocatedTalentPoints = iAllocatedTalentPoints + hTalentDesc:GetCurrentCost()
+				local iPendingCost = hTalentDesc:GetCost()
+				local iKnownCost = 0
+				if ( self.m_mapKnownTalents:HasTalent(hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+													  hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot()) ) then
+					iKnownCost = self.m_mapKnownTalents:GetTalentDesc( hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+																	   hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot() ):GetCost()
+				end
+				iSpentTalentPoints = iSpentTalentPoints + (iPendingCost - iKnownCost)
 			end
 		end
-	end
-	return iAllocatedTalentPoints
+	)
+
+	return iSpentTalentPoints
 end
 
-function ClassLessClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	-- Get Talent Descriptor
-	local hTalentDesc = self.m_hCLDataTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	local hTalentDesc = CLDataTalents:GetInstance():GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	
 	-- Check if we have enough points
-	if ( self:GetRemainingTalentPoints() <= 0 ) then
-		return
+	if hTalentDesc:IsPetTalent() then
+		if ( self:GetRemainingPetTalentPoints() <= 0 ) then
+			return
+		end
+	else
+		if ( self:GetRemainingTalentPoints() <= 0 ) then
+			return
+		end
 	end
 	
 	-- Check Grid Tier Requirement
-	local iSpecAllocatedTalentPoints = self:GetSpecAllocatedTalentPoints( iClassIndex, iSpecIndex )
-	local iTierRequiredTalentPoints = self:GetRequiredTalentPoints( iGridTier )
-	if ( iSpecAllocatedTalentPoints < iTierRequiredTalentPoints ) then
+	local iSpecSpentTalentPoints = self:GetSpecSpentTalentPoints( iClassIndex, iSpecIndex )
+	local iTierRequiredTalentPoints = 0
+	if hTalentDesc:IsPetTalent() then
+		iTierRequiredTalentPoints = self:GetRequiredPetTalentPoints( iGridTier )
+	else
+		iTierRequiredTalentPoints = self:GetRequiredTalentPoints( iGridTier )
+	end
+	if ( iSpecSpentTalentPoints < iTierRequiredTalentPoints ) then
 		return
 	end
 	
@@ -343,16 +329,13 @@ function ClassLessClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, i
 	local iRequiredTalentGridTier, iRequiredTalentGridSlot = hTalentDesc:GetRequiredTalent()
 	if ( iRequiredTalentGridTier ~= 0 and iRequiredTalentGridSlot ~= 0 ) then
 		-- Must be present
-		local iRequiredTalentIndex = self:GetPendingTalentIndex( iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot )
-		if ( iRequiredTalentIndex ~= 0 ) then
-			hRequiredTalentDesc = self:GetPendingTalentDesc( iRequiredTalentIndex )
+		local hRequiredTalentDesc = nil
+		if ( self.m_mapPendingTalents:HasTalent(iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot) ) then
+			hRequiredTalentDesc = self.m_mapPendingTalents:GetTalentDesc( iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot )
+		elseif ( self.m_mapKnownTalents:HasTalent(iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot) ) then
+			hRequiredTalentDesc = self.m_mapKnownTalents:GetTalentDesc( iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot )
 		else
-			iRequiredTalentIndex = self:GetKnownTalentIndex( iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot )
-			if ( iRequiredTalentIndex ~= 0 ) then
-				hRequiredTalentDesc = self:GetKnownTalentDesc( iRequiredTalentIndex )
-			else
-				return
-			end
+			return
 		end
 		-- Must be maxed
 		if ( not hRequiredTalentDesc:IsMaxed() ) then
@@ -363,12 +346,12 @@ function ClassLessClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, i
 	-- TalentSpell case
 	if hTalentDesc:IsTalentSpell() then
 		-- Check if TalentSpell is pending
-		if self:IsTalentPending(iClassIndex, iSpecIndex, iGridTier, iGridSlot) then
+		if ( self.m_mapPendingTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
 			return
 		end
 		
 		-- Check if TalentSpell is known
-		if self:IsTalentKnown(iClassIndex, iSpecIndex, iGridTier, iGridSlot) then
+		if ( self.m_mapKnownTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
 			return
 		end
 		
@@ -380,36 +363,38 @@ function ClassLessClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, i
 		hTalentDesc:SetCurrentRank( iRank )
 		
 		-- Add TalentSpell
-		table.insert( self.m_arrPendingTalents, hTalentDesc )
+		self.m_mapPendingTalents:AddTalent( hTalentDesc )
 	
 		return
 	end
 	
 	-- Check if Talent is pending
-	local iIndex = self:GetPendingTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	if ( iIndex ~= 0 ) then
+	if ( self.m_mapPendingTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
+		local hPendingTalentDesc = self.m_mapPendingTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	
 		-- Get current Rank
-		local iRank = self.m_arrPendingTalents[iIndex]:GetCurrentRank()
+		local iRank = hPendingTalentDesc:GetCurrentRank()
 		
 		-- Check if already Maxed
-		if ( iRank == self.m_arrPendingTalents[iIndex]:GetRankCount() ) then
+		if ( iRank == hPendingTalentDesc:GetRankCount() ) then
 			return
 		end
 	
 		-- Upgrade Rank
-		self.m_arrPendingTalents[iIndex]:SetCurrentRank( iRank + 1 )
+		self.m_mapPendingTalents:SetTalentRank( iClassIndex, iSpecIndex, iGridTier, iGridSlot, iRank + 1 )
 		
 		return
 	end
 	
 	-- Check if Talent is known
-	iIndex = self:GetKnownTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	if ( iIndex ~= 0 ) then
+	if ( self.m_mapKnownTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
+		local hKnownTalentDesc = self.m_mapKnownTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+		
 		-- Get current Rank
-		local iRank = self.m_arrKnownTalents[iIndex]:GetCurrentRank()
+		local iRank = hKnownTalentDesc:GetCurrentRank()
 		
 		-- Check if already Maxed
-		if ( iRank == self.m_arrKnownTalents[iIndex]:GetRankCount() ) then
+		if ( iRank == hKnownTalentDesc:GetRankCount() ) then
 			return
 		end
 		
@@ -417,7 +402,7 @@ function ClassLessClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, i
 		hTalentDesc:SetCurrentRank( iRank + 1 )
 		
 		-- Add Talent
-		table.insert( self.m_arrPendingTalents, hTalentDesc )
+		self.m_mapPendingTalents:AddTalent( hTalentDesc )
 		
 		return
 	end
@@ -426,160 +411,120 @@ function ClassLessClient:AddPendingTalent( iClassIndex, iSpecIndex, iGridTier, i
 	hTalentDesc:SetCurrentRank( 1 )
 
 	-- Add Talent
-	table.insert( self.m_arrPendingTalents, hTalentDesc )
+	self.m_mapPendingTalents:AddTalent( hTalentDesc )
 end
-function ClassLessClient:RemovePendingTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	-- Retrieve Index
-	local iIndex = self:GetPendingTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	if ( iIndex == 0 ) then
+function CLClient:RemovePendingTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	-- Check if present
+	if ( not self.m_mapPendingTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
 		return
 	end
+	local hTalentDesc = self.m_mapPendingTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	
 	-- Get current Rank
-	local iRank = self.m_arrPendingTalents[iIndex]:GetCurrentRank()
+	local iRank = hTalentDesc:GetCurrentRank()
 	
 	-- Check Grid Tier Requirement
-	local iTierCount = self.m_hCLDataTalents:GetGridHeight( iClassIndex, iSpecIndex )
-	local iSpecAllocatedTalentPoints = 0
+	local iTierCount = CLDataTalents:GetInstance():GetGridHeight( iClassIndex, iSpecIndex )
+	local iSpecSpentTalentPoints = 0
 	for i = 1, iTierCount do
-		local iThisTierTalentPoints = self:GetSpecAllocatedTalentPoints( iClassIndex, iSpecIndex, i )
-		if ( iThisTierTalentPoints > 0 and iSpecAllocatedTalentPoints < self:GetRequiredTalentPoints(i) ) then
+		local iThisTierTalentPoints = self:GetSpecSpentTalentPoints( iClassIndex, iSpecIndex, i )
+		local iRequiredTalentPoints = 0
+		if hTalentDesc:IsPetTalent() then
+			iRequiredTalentPoints = self:GetRequiredPetTalentPoints(i)
+		else
+			iRequiredTalentPoints = self:GetRequiredTalentPoints(i)
+		end
+		if ( iThisTierTalentPoints > 0 and iSpecSpentTalentPoints < iRequiredTalentPoints ) then
 			print( "Grid Tier Requirements Failed !" )
 			return
 		end
-		iSpecAllocatedTalentPoints = iSpecAllocatedTalentPoints + iThisTierTalentPoints
+		iSpecSpentTalentPoints = iSpecSpentTalentPoints + iThisTierTalentPoints
 		if ( i == iGridTier ) then
-			iSpecAllocatedTalentPoints = iSpecAllocatedTalentPoints - 1
+			iSpecSpentTalentPoints = iSpecSpentTalentPoints - 1
 		end
 	end
 	
 	-- Check Talent Requirement
-	iPendingTalentCount = self:GetPendingTalentCount()
-	for i = 1, iPendingTalentCount do
-		local hTalentDesc = self:GetPendingTalentDesc( i )
-		local iRequiredTalentGridTier, iRequiredTalentGridSlot = hTalentDesc:GetRequiredTalent()
-		if ( iClassIndex == hTalentDesc:GetClassIndex() and iSpecIndex == hTalentDesc:GetSpecIndex() and
-			 iGridTier == iRequiredTalentGridTier and iGridSlot == iRequiredTalentGridSlot ) then
-			print( "Talent Requirements Failed !" )
-			return
+	self.m_mapPendingTalents:EnumCallback(
+		function( hDependentTalentDesc )
+			local iRequiredTalentGridTier, iRequiredTalentGridSlot = hDependentTalentDesc:GetRequiredTalent()
+			if ( iClassIndex == hDependentTalentDesc:GetClassIndex() and iSpecIndex == hDependentTalentDesc:GetSpecIndex() and
+				 iGridTier == iRequiredTalentGridTier and iGridSlot == iRequiredTalentGridSlot ) then
+				print( "Talent Requirements Failed !" )
+				return
+			end
 		end
-	end
+	)
+	self.m_mapKnownTalents:EnumCallback(
+		function( hDependentTalentDesc )
+			local iRequiredTalentGridTier, iRequiredTalentGridSlot = hDependentTalentDesc:GetRequiredTalent()
+			if ( iClassIndex == hDependentTalentDesc:GetClassIndex() and iSpecIndex == hDependentTalentDesc:GetSpecIndex() and
+				 iGridTier == iRequiredTalentGridTier and iGridSlot == iRequiredTalentGridSlot ) then
+				print( "Talent Requirements Failed !" )
+				return
+			end
+		end
+	)
 	
 	-- TalentSpell & Remove cases
-	if ( self.m_arrPendingTalents[iIndex]:IsTalentSpell() or (iRank == 1) ) then
+	if ( hTalentDesc:IsTalentSpell() or (iRank == 1) ) then
 		-- Remove Talent
-		table.remove( self.m_arrPendingTalents, iIndex )
+		self.m_mapPendingTalents:RemoveTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 		
 		return
 	end
 	
 	-- Check if Talent is known
-	local iKnownIndex = self:GetKnownTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	if ( iKnownIndex ~= 0 ) then
+	if ( self.m_mapKnownTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
+		local hKnownTalentDesc = self.m_mapKnownTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	
 		-- Get known Rank
-		local iKnownRank = self.m_arrKnownTalents[iKnownIndex]:GetCurrentRank()
+		local iKnownRank = hKnownTalentDesc:GetCurrentRank()
 		
 		-- Check if it matches previous Rank
 		if ( iKnownRank == (iRank - 1) ) then
 			-- Remove Talent
-			table.remove( self.m_arrPendingTalents, iIndex )
+			self.m_mapPendingTalents:RemoveTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 			
 			return
 		end
 	end
 	
 	-- Downgrade Rank
-	self.m_arrPendingTalents[iIndex]:SetCurrentRank( iRank - 1 )
+	self.m_mapPendingTalents:SetTalentRank( iClassIndex, iSpecIndex, iGridTier, iGridSlot, iRank - 1 )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessClient : Methods - Glyphs
-function ClassLessClient:GetDataGlyphs()
-	return self.m_hCLDataGlyphs
+-- CLClient : Methods - Glyphs
+function CLClient:GetKnownGlyphs()
+	return self.m_mapKnownGlyphs
+end
+function CLClient:GetPendingGlyphs()
+	return self.m_mapPendingGlyphs
 end
 
-function ClassLessClient:GetKnownGlyphCount()
-	return #( self.m_arrKnownGlyphs )
-end
-function ClassLessClient:GetKnownGlyphDesc( iIndex )
-	return self.m_arrKnownGlyphs[iIndex]
-end
-
-function ClassLessClient:IsGlyphKnown( iClassIndex, iSpecIndex, iGlyphIndex )
-	return ( self:GetKnownGlyphIndex(iClassIndex, iSpecIndex, iGlyphIndex) ~= 0 )
-end
-
-function ClassLessClient:GetKnownGlyphIndex( iClassIndex, iSpecIndex, iGlyphIndex )
-	local iGlyphCount = self:GetKnownGlyphCount()
-	for i = 1, iGlyphCount do
-		local hGlyphDesc = self:GetKnownGlyphDesc( i )
-		if ( iClassIndex == hGlyphDesc:GetClassIndex() and iSpecIndex == hGlyphDesc:GetSpecIndex() and
-			 iGlyphIndex == hGlyphDesc:GetGlyphIndex() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessClient:GetPendingGlyphCount()
-	return #( self.m_arrPendingGlyphs )
-end
-function ClassLessClient:GetPendingGlyphDesc( iIndex )
-	return self.m_arrPendingGlyphs[iIndex]
-end
-
-function ClassLessClient:IsGlyphPending( iClassIndex, iSpecIndex, iGlyphIndex )
-	return ( self:GetPendingGlyphIndex(iClassIndex, iSpecIndex, iGlyphIndex) ~= 0 )
-end
-
-function ClassLessClient:GetPendingGlyphIndex( iClassIndex, iSpecIndex, iGlyphIndex )
-	local iGlyphCount = self:GetPendingGlyphCount()
-	for i = 1, iGlyphCount do
-		local hGlyphDesc = self:GetPendingGlyphDesc( i )
-		if ( iClassIndex == hGlyphDesc:GetClassIndex() and iSpecIndex == hGlyphDesc:GetSpecIndex() and
-			 iGlyphIndex == hGlyphDesc:GetGlyphIndex() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessClient:GetFreeGlyphMajorSlots()
+function CLClient:GetFreeGlyphMajorSlots()
 	return self.m_iFreeGlyphMajorSlots
 end
-function ClassLessClient:GetFreeGlyphMinorSlots()
+function CLClient:GetFreeGlyphMinorSlots()
 	return self.m_iFreeGlyphMinorSlots
 end
-function ClassLessClient:GetSpentGlyphMajorSlots()
-	local iGlyphCount = self:GetPendingGlyphCount()
-	local iSpentGlyphSlots = 0
-	for i = 1, iGlyphCount do
-		if ( self:GetPendingGlyphDesc(i):IsMajor() ) then
-			iSpentGlyphSlots = iSpentGlyphSlots + 1
-		end
-	end
-	return iSpentGlyphSlots
+function CLClient:GetSpentGlyphMajorSlots()
+	return self.m_mapPendingGlyphs:GetGlyphMajorSlots()
 end
-function ClassLessClient:GetSpentGlyphMinorSlots()
-	local iGlyphCount = self:GetPendingGlyphCount()
-	local iSpentGlyphSlots = 0
-	for i = 1, iGlyphCount do
-		if ( not self:GetPendingGlyphDesc(i):IsMajor() ) then
-			iSpentGlyphSlots = iSpentGlyphSlots + 1
-		end
-	end
-	return iSpentGlyphSlots
+function CLClient:GetSpentGlyphMinorSlots()
+	return self.m_mapPendingGlyphs:GetGlyphMinorSlots()
 end
-function ClassLessClient:GetRemainingGlyphMajorSlots()
+function CLClient:GetRemainingGlyphMajorSlots()
 	return ( self:GetFreeGlyphMajorSlots() - self:GetSpentGlyphMajorSlots() )
 end
-function ClassLessClient:GetRemainingGlyphMinorSlots()
+function CLClient:GetRemainingGlyphMinorSlots()
 	return ( self:GetFreeGlyphMinorSlots() - self:GetSpentGlyphMinorSlots() )
 end
 
-function ClassLessClient:AddPendingGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
+function CLClient:AddPendingGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
 	-- Get Glyph Descriptor
-	local hGlyphDesc = self.m_hCLDataGlyphs:GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
+	local hGlyphDesc = CLDataGlyphs:GetInstance():GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
 	
 	-- Check if we have a free slot
 	if hGlyphDesc:IsMajor() then
@@ -593,32 +538,25 @@ function ClassLessClient:AddPendingGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
 	end
 	
 	-- Check if Glyph is pending
-	if self:IsGlyphPending(iClassIndex, iSpecIndex, iGlyphIndex) then
+	if ( self.m_mapPendingGlyphs:HasGlyph(iClassIndex, iSpecIndex, iGlyphIndex) ) then
 		return
 	end
 	
 	-- Check if Glyph is known
-	if self:IsGlyphKnown(iClassIndex, iSpecIndex, iGlyphIndex) then
+	if ( self.m_mapKnownGlyphs:HasGlyph(iClassIndex, iSpecIndex, iGlyphIndex) ) then
 		return
 	end
 	
 	-- Add Glyph
-	table.insert( self.m_arrPendingGlyphs, hGlyphDesc )
+	self.m_mapPendingGlyphs:AddGlyph( hGlyphDesc )
 end
-function ClassLessClient:RemovePendingGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
-	-- Retrieve Index
-	local iIndex = self:GetPendingGlyphIndex( iClassIndex, iSpecIndex, iGlyphIndex )
-	if ( iIndex == 0 ) then
-		return
-	end
-	
-	-- Remove Glyph
-	table.remove( self.m_arrPendingGlyphs, iIndex )
+function CLClient:RemovePendingGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
+	self.m_mapPendingGlyphs:RemoveGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessClient : Initialization
-function ClassLessClient:Initialize()
+-- CLClient : Initialization
+function CLClient:Initialize()
 	if ( self.m_hAIOHandlers ~= nil ) then
 		return
 	end
@@ -629,7 +567,10 @@ function ClassLessClient:Initialize()
 	self.m_hAIOHandlers = AIO.AddHandlers( self.m_strAIOHandlerName, {} )
 	
 		-- OnClientInit
-	self.m_hAIOHandlers.OnClientInit = function( hPlayer, iFreeSpellPoints, iFreeTalentPoints, iRequiredTalentPointsPerTier, iFreeGlyphMajorSlots, iFreeGlyphMinorSlots, iResetCost,
+	self.m_hAIOHandlers.OnClientInit = function( hPlayer, iFreeSpellPoints, iFreePetSpellPoints,
+														  iFreeTalentPoints, iFreePetTalentPoints,
+														  iRequiredTalentPointsPerTier, iRequiredPetTalentPointsPerTier,
+														  iFreeGlyphMajorSlots, iFreeGlyphMinorSlots, iResetCost,
 														  arrEncodedSpells, arrEncodedTalents, arrEncodedGlyphs, strServerToken )
 		print( "[ClassLess][AIO] (Client-Side) OnClientInit !" )
 		
@@ -638,35 +579,28 @@ function ClassLessClient:Initialize()
 		
 		-- Save Server Data
 		hThis.m_iFreeSpellPoints = iFreeSpellPoints
+		hThis.m_iFreePetSpellPoints = iFreePetSpellPoints
 		hThis.m_iFreeTalentPoints = iFreeTalentPoints
+		hThis.m_iFreePetTalentPoints = iFreePetTalentPoints
 		hThis.m_iRequiredTalentPointsPerTier = iRequiredTalentPointsPerTier
+		hThis.m_iRequiredPetTalentPointsPerTier = iRequiredPetTalentPointsPerTier
 		hThis.m_iFreeGlyphMajorSlots = iFreeGlyphMajorSlots
 		hThis.m_iFreeGlyphMinorSlots = iFreeGlyphMinorSlots
 		hThis.m_iResetCost = iResetCost
 
-		hThis.m_arrKnownSpells = ClassLessSpellDesc:DecodeSpells( arrEncodedSpells )
-		hThis.m_arrKnownTalents = ClassLessTalentDesc:DecodeTalents( arrEncodedTalents )
-		hThis.m_arrKnownGlyphs = ClassLessGlyphDesc:DecodeGlyphs( arrEncodedGlyphs )
-	
-		-- Initialize Spell/Talent/Glyph Data
-		self.m_hCLDataSpells = ClassLessDataSpells()
-		self.m_hCLDataSpells:Initialize()
-		
-		self.m_hCLDataTalents = ClassLessDataTalents()
-		self.m_hCLDataTalents:Initialize()
-		
-		self.m_hCLDataGlyphs = ClassLessDataGlyphs()
-		self.m_hCLDataGlyphs:Initialize()
+		hThis.m_mapKnownSpells:Decode( arrEncodedSpells )
+		hThis.m_mapKnownTalents:Decode( arrEncodedTalents )
+		hThis.m_mapKnownGlyphs:Decode( arrEncodedGlyphs )
 		
 		-- Build UI
-		self.m_hCLMainToolTip = ClassLessMainToolTip()
-		self.m_hCLMainToolTip:Initialize()
+		self.m_hCLUIToolTip = CLUIToolTip()
+		self.m_hCLUIToolTip:Initialize()
 		
-		self.m_hCLMainFrame = ClassLessMainFrame()
-		self.m_hCLMainFrame:Initialize()
+		self.m_hCLUIMainFrame = CLUIMainFrame()
+		self.m_hCLUIMainFrame:Initialize()
 		
-		self.m_hCLMainButton = ClassLessMainButton()
-		self.m_hCLMainButton:Initialize()
+		self.m_hCLUIMainButton = CLUIMainButton()
+		self.m_hCLUIMainButton:Initialize()
 		
 		print( "[ClassLess][AIO] Client Initialization Completed !" )
 	end
@@ -674,67 +608,80 @@ function ClassLessClient:Initialize()
 	print( "[ClassLess][Client] AIO Handler OnClientInit Registered !" )
 	
 		-- OnCommitAbilities
-	self.m_hAIOHandlers.OnCommitAbilities = function( hPlayer, iFreeSpellPoints, iFreeTalentPoints, iFreeGlyphMajorSlots, iFreeGlyphMinorSlots,
+	self.m_hAIOHandlers.OnCommitAbilities = function( hPlayer, iFreeSpellPoints, iFreePetSpellPoints,
+															   iFreeTalentPoints, iFreePetTalentPoints,
+															   iFreeGlyphMajorSlots, iFreeGlyphMinorSlots,
 															   arrEncodedSpells, arrEncodedTalents, arrEncodedGlyphs )
 		print( "[ClassLess][AIO] (Client-Side) OnCommitAbilities !" )
 		
 		-- Update Server Data
 		hThis.m_iFreeSpellPoints = iFreeSpellPoints
+		hThis.m_iFreePetSpellPoints = iFreePetSpellPoints
 		hThis.m_iFreeTalentPoints = iFreeTalentPoints
+		hThis.m_iFreePetTalentPoints = iFreePetTalentPoints
 		hThis.m_iFreeGlyphMajorSlots = iFreeGlyphMajorSlots
 		hThis.m_iFreeGlyphMinorSlots = iFreeGlyphMinorSlots
 	
-		hThis.m_arrKnownSpells = ClassLessSpellDesc:DecodeSpells( arrEncodedSpells )
-		hThis.m_arrKnownTalents = ClassLessTalentDesc:DecodeTalents( arrEncodedTalents )
-		hThis.m_arrKnownGlyphs = ClassLessGlyphDesc:DecodeGlyphs( arrEncodedGlyphs )
+		hThis.m_mapKnownSpells:Decode( arrEncodedSpells )
+		hThis.m_mapKnownTalents:Decode( arrEncodedTalents )
+		hThis.m_mapKnownGlyphs:Decode( arrEncodedGlyphs )
 		
 		-- Update UI
-		hThis.m_hCLMainFrame:Update()
+		hThis.m_hCLUIMainFrame:Update()
 	end
 	
 	print( "[ClassLess][Client] AIO Handler OnCommitAbilities Registered !" )
 	
 		-- OnResetAbilities
-	self.m_hAIOHandlers.OnResetAbilities = function( hPlayer, iFreeSpellPoints, iFreeTalentPoints, iFreeGlyphMajorSlots, iFreeGlyphMinorSlots, iResetCost )
+	self.m_hAIOHandlers.OnResetAbilities = function( hPlayer, iFreeSpellPoints, iFreePetSpellPoints,
+															  iFreeTalentPoints, iFreePetTalentPoints,
+															  iFreeGlyphMajorSlots, iFreeGlyphMinorSlots, iResetCost )
 		print( "[ClassLess][AIO] (Client-Side) OnResetAbilities !" )
 		
 		-- Update Server Data
 		hThis.m_iFreeSpellPoints = iFreeSpellPoints
+		hThis.m_iFreePetSpellPoints = iFreePetSpellPoints
 		hThis.m_iFreeTalentPoints = iFreeTalentPoints
+		hThis.m_iFreePetTalentPoints = iFreePetTalentPoints
 		hThis.m_iFreeGlyphMajorSlots = iFreeGlyphMajorSlots
 		hThis.m_iFreeGlyphMinorSlots = iFreeGlyphMinorSlots
 		hThis.m_iResetCost = iResetCost
 	
-		hThis.m_arrKnownSpells = {}
-		hThis.m_arrKnownTalents = {}
-		hThis.m_arrKnownGlyphs = {}
+		hThis.m_mapKnownSpells:Clear()
+		hThis.m_mapKnownTalents:Clear()
+		hThis.m_mapKnownGlyphs:Clear()
 		
 		-- Update UI
-		hThis.m_hCLMainFrame:Update()
+		hThis.m_hCLUIMainFrame:Update()
 	end
 	
 	print( "[ClassLess][Client] AIO Handler OnResetAbilities Registered !" )
 	
 		-- OnLevelChange
-	self.m_hAIOHandlers.OnLevelChange = function( hPlayer, iFreeSpellPoints, iFreeTalentPoints, iFreeGlyphMajorSlots, iFreeGlyphMinorSlots, arrEncodedSpells, arrEncodedTalents )
+	self.m_hAIOHandlers.OnLevelChange = function( hPlayer, iFreeSpellPoints, iFreePetSpellPoints,
+														   iFreeTalentPoints, iFreePetTalentPoints,
+														   iFreeGlyphMajorSlots, iFreeGlyphMinorSlots,
+														   arrEncodedSpells, arrEncodedTalents )
 		print( "[ClassLess][AIO] (Client-Side) OnLevelChange !" )
 		
 		-- Flush Pending Abilities
-		hThis.m_arrPendingSpells = {}
-		hThis.m_arrPendingTalents = {}
-		hThis.m_arrPendingGlyphs = {}
+		hThis.m_mapPendingSpells:Clear()
+		hThis.m_mapPendingTalents:Clear()
+		hThis.m_mapPendingGlyphs:Clear()
 		
 		-- Update Server Data
 		hThis.m_iFreeSpellPoints = iFreeSpellPoints
+		hThis.m_iFreePetSpellPoints = iFreePetSpellPoints
 		hThis.m_iFreeTalentPoints = iFreeTalentPoints
+		hThis.m_iFreePetTalentPoints = iFreePetTalentPoints
 		hThis.m_iFreeGlyphMajorSlots = iFreeGlyphMajorSlots
 		hThis.m_iFreeGlyphMinorSlots = iFreeGlyphMinorSlots
 	
-		hThis.m_arrKnownSpells = ClassLessSpellDesc:DecodeSpells( arrEncodedSpells )
-		hThis.m_arrKnownTalents = ClassLessTalentDesc:DecodeTalents( arrEncodedTalents )
+		hThis.m_mapKnownSpells:Decode( arrEncodedSpells )
+		hThis.m_mapKnownTalents:Decode( arrEncodedTalents )
 		
 		-- Update UI
-		hThis.m_hCLMainFrame:Update()
+		hThis.m_hCLUIMainFrame:Update()
 	end
 	
 	print( "[ClassLess][Client] AIO Handler OnLevelChange Registered !" )
@@ -744,14 +691,13 @@ end
 -- Entry Point
 print( "[ClassLess][Client] Client Initialization ..." )
 
-CLClient = ClassLessClient()
-CLClient:Initialize()
+local hClientInstance = CLClient:GetInstance()
 
 print( "[ClassLess][Client] Client Initialization Complete !" )
 
 -------------------------------------------------------------------------------------------------------------------
 -- Hook : Talent Frame
 function ToggleTalentFrame()
-	CLClient.m_hCLMainFrame:Toggle()
+	hClientInstance:GetMainFrame():Toggle()
 end
 

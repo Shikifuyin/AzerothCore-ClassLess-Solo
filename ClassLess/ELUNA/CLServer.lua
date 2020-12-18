@@ -9,6 +9,10 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLConfig then require("CLConfig") end
+if not CLDataSpells then require("CLDataSpells") end
+if not CLDataTalents then require("CLDataTalents") end
+if not CLDataGlyphs then require("CLDataGlyphs") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -18,21 +22,21 @@ if not class then require("class") end
 -------------------------------------------------------------------------------------------------------------------
 -- Constants
 
--- Server Settings (Change these here if you want ... too lazy to make a config file !)
-CLCONFIG_SPELL_POINTS_RATE = 1.0
-CLCONFIG_TALENT_POINTS_RATE = 1.0
-CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER = 5
-CLCONFIG_GLYPH_MAJOR_SLOTS_RATE = 1.0
-CLCONFIG_GLYPH_MINOR_SLOTS_RATE = 1.0
-CLCONFIG_RESET_PRICES = { 10000, 50000, 100000, 150000, 200000, 350000 } -- in copper, any number of values
-
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessServer - Declaration
-ClassLessServer = class({
+-- CLServer - Declaration
+CLServer = class({
 	-- Static Members
+	sm_hInstance = nil
 })
+function CLServer:GetInstance()
+	if ( self.sm_hInstance == nil ) then
+		self.sm_hInstance = CLServer()
+		self.sm_hInstance:Initialize()
+	end
+	return self.sm_hInstance
+end
 
-function ClassLessServer:init()
+function CLServer:init()
 	-- Session Token
 	self.m_strServerToken = nil
 	
@@ -40,26 +44,13 @@ function ClassLessServer:init()
 	self.m_strAIOHandlerName = nil
 	self.m_hAIOHandlers = nil
 	
-	-- Server Settings
-	self.m_fSpellPointsRate = CLCONFIG_SPELL_POINTS_RATE
-	self.m_fTalentPointsRate = CLCONFIG_TALENT_POINTS_RATE
-	self.m_iRequiredTalentPointsPerTier = CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER
-	self.m_fGlyphMajorSlotsRate = CLCONFIG_GLYPH_MAJOR_SLOTS_RATE
-	self.m_fGlyphMinorSlotsRate = CLCONFIG_GLYPH_MINOR_SLOTS_RATE
-	self.m_arrResetPrices = CLCONFIG_RESET_PRICES
-	
-	-- Spell/Talent/Glyph Data
-	self.m_hCLDataSpells = nil
-	self.m_hCLDataTalents = nil
-	self.m_hCLDataGlyphs = nil
-	
 	-- Player Data
 	self.m_arrPlayerData = {} -- array( iPlayerGUID -> ClassLessPlayerData )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessServer : Methods - General
-function ClassLessServer:CheckSession( hPlayer, strClientToken )
+-- CLServer : Methods - General
+function CLServer:CheckSession( hPlayer, strClientToken )
 	local bValid = ( strClientToken == self.m_strServerToken )
 	
 	if ( not bValid ) then
@@ -69,98 +60,106 @@ function ClassLessServer:CheckSession( hPlayer, strClientToken )
 	return bValid
 end
 
-function ClassLessServer:GetResetCost( hPlayer )
+function CLServer:GetResetCost( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
 	local iResetCounter = self.m_arrPlayerData[iPlayerGUID]:GetResetCounter()
-	return self.m_arrResetPrices[ 1 + math.min(iResetCounter, #(self.m_arrResetPrices) - 1) ]
+	return CLConfig.AbilityResetCosts[ 1 + math.min(iResetCounter, #(CLConfig.AbilityResetCosts) - 1) ]
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessServer : Methods - Spells
-function ClassLessServer:GetDataSpells()
-	return self.m_hCLDataSpells
+-- CLServer : Methods - Spells
+function CLServer:GetPlayerSpells( hPlayer )
+	local iPlayerGUID = hPlayer:GetGUIDLow()
+	return self.m_arrPlayerData[iPlayerGUID]:GetSpellMap()
 end
 
-function ClassLessServer:GetPlayerSpells( hPlayer )
+function CLServer:GetTotalSpellPoints( hPlayer )
+	return math.floor( hPlayer:GetLevel() * CLConfig.SpellPointsRate )
+end
+function CLServer:GetTotalPetSpellPoints( hPlayer )
+	return math.floor( hPlayer:GetLevel() * 0.5 * CLConfig.PetSpellPointsRate )
+end
+function CLServer:GetAllocatedSpellPoints( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetSpells()
+	return self.m_arrPlayerData[iPlayerGUID]:GetSpellMap():GetSpellPoints()
 end
-
-function ClassLessServer:GetTotalSpellPoints( hPlayer )
-	return math.floor( hPlayer:GetLevel() * self.m_fSpellPointsRate )
-end
-function ClassLessServer:GetAllocatedSpellPoints( hPlayer )
+function CLServer:GetAllocatedPetSpellPoints( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetAllocatedSpellPoints()
+	return self.m_arrPlayerData[iPlayerGUID]:GetSpellMap():GetPetSpellPoints()
 end
-function ClassLessServer:GetFreeSpellPoints( hPlayer )
+function CLServer:GetFreeSpellPoints( hPlayer )
 	return ( self:GetTotalSpellPoints(hPlayer) - self:GetAllocatedSpellPoints(hPlayer) )
 end
+function CLServer:GetFreePetSpellPoints( hPlayer )
+	return ( self:GetTotalPetSpellPoints(hPlayer) - self:GetAllocatedPetSpellPoints(hPlayer) )
+end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessServer : Methods - Talents
-function ClassLessServer:GetDataTalents()
-	return self.m_hCLDataTalents
+-- CLServer : Methods - Talents
+function CLServer:GetPlayerTalents( hPlayer )
+	local iPlayerGUID = hPlayer:GetGUIDLow()
+	return self.m_arrPlayerData[iPlayerGUID]:GetTalentMap()
 end
 
-function ClassLessServer:GetPlayerTalents( hPlayer )
+function CLServer:GetTotalTalentPoints( hPlayer )
+	return math.floor( math.max(hPlayer:GetLevel() - 9, 0) * CLConfig.TalentPointsRate )
+end
+function CLServer:GetTotalPetTalentPoints( hPlayer )
+	return math.floor( math.max(hPlayer:GetLevel() - 9, 0) * 0.5 * CLConfig.PetTalentPointsRate )
+end
+function CLServer:GetAllocatedTalentPoints( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetTalents()
+	return self.m_arrPlayerData[iPlayerGUID]:GetTalentMap():GetTalentPoints()
 end
-
-function ClassLessServer:GetTotalTalentPoints( hPlayer )
-	return math.floor( math.max(hPlayer:GetLevel() - 9, 0) * self.m_fTalentPointsRate )
-end
-function ClassLessServer:GetAllocatedTalentPoints( hPlayer )
+function CLServer:GetAllocatedPetTalentPoints( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetAllocatedTalentPoints()
+	return self.m_arrPlayerData[iPlayerGUID]:GetTalentMap():GetPetTalentPoints()
 end
-function ClassLessServer:GetFreeTalentPoints( hPlayer )
+function CLServer:GetFreeTalentPoints( hPlayer )
 	return ( self:GetTotalTalentPoints(hPlayer) - self:GetAllocatedTalentPoints(hPlayer) )
 end
-
-function ClassLessServer:GetRequiredTalentPoints( iGridTier )
-	return ( (iGridTier-1) * self.m_iRequiredTalentPointsPerTier )
+function CLServer:GetFreePetTalentPoints( hPlayer )
+	return ( self:GetTotalPetTalentPoints(hPlayer) - self:GetAllocatedPetTalentPoints(hPlayer) )
 end
-function ClassLessServer:GetRequiredTalentPointsPerTier()
-	return self.m_iRequiredTalentPointsPerTier
+
+function CLServer:GetRequiredTalentPoints( iGridTier )
+	return ( (iGridTier-1) * CLConfig.RequiredTalentPointsPerTier )
+end
+function CLServer:GetRequiredPetTalentPoints( iGridTier )
+	return ( (iGridTier-1) * CLConfig.RequiredPetTalentPointsPerTier )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessServer : Methods - Glyphs
-function ClassLessServer:GetDataGlyphs()
-	return self.m_hCLDataGlyphs
+-- CLServer : Methods - Glyphs
+function CLServer:GetPlayerGlyphs( hPlayer )
+	local iPlayerGUID = hPlayer:GetGUIDLow()
+	return self.m_arrPlayerData[iPlayerGUID]:GetGlyphMap()
 end
 
-function ClassLessServer:GetPlayerGlyphs( hPlayer )
+function CLServer:GetTotalGlyphMajorSlots( hPlayer )
+	return math.floor( ( (hPlayer:GetLevel() + 17.5) / 32.5 ) * CLConfig.GlyphMajorSlotsRate )
+end
+function CLServer:GetTotalGlyphMinorSlots( hPlayer )
+	return math.floor( ( (hPlayer:GetLevel() + 12.5) / 27.5 ) * CLConfig.GlyphMinorSlotsRate )
+end
+function CLServer:GetAllocatedGlyphMajorSlots( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetGlyphs()
+	return self.m_arrPlayerData[iPlayerGUID]:GetGlyphMap():GetGlyphMajorSlots()
 end
-
-function ClassLessServer:GetTotalGlyphMajorSlots( hPlayer )
-	return math.floor( ( (hPlayer:GetLevel() + 17.5) / 32.5 ) * self.m_fGlyphMajorSlotsRate )
-end
-function ClassLessServer:GetTotalGlyphMinorSlots( hPlayer )
-	return math.floor( ( (hPlayer:GetLevel() + 12.5) / 27.5 ) * self.m_fGlyphMinorSlotsRate )
-end
-function ClassLessServer:GetAllocatedGlyphMajorSlots( hPlayer )
+function CLServer:GetAllocatedGlyphMinorSlots( hPlayer )
 	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetAllocatedGlyphMajorSlots()
+	return self.m_arrPlayerData[iPlayerGUID]:GetGlyphMap():GetGlyphMinorSlots()
 end
-function ClassLessServer:GetAllocatedGlyphMinorSlots( hPlayer )
-	local iPlayerGUID = hPlayer:GetGUIDLow()
-	return self.m_arrPlayerData[iPlayerGUID]:GetAllocatedGlyphMinorSlots()
-end
-function ClassLessServer:GetFreeGlyphMajorSlots( hPlayer )
+function CLServer:GetFreeGlyphMajorSlots( hPlayer )
 	return ( self:GetTotalGlyphMajorSlots(hPlayer) - self:GetAllocatedGlyphMajorSlots(hPlayer) )
 end
-function ClassLessServer:GetFreeGlyphMinorSlots( hPlayer )
+function CLServer:GetFreeGlyphMinorSlots( hPlayer )
 	return ( self:GetTotalGlyphMinorSlots(hPlayer) - self:GetAllocatedGlyphMinorSlots(hPlayer) )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessServer : Initialization
-function ClassLessServer:Initialize()
+-- CLServer : Initialization
+function CLServer:Initialize()
 	if ( self.m_hAIOHandlers ~= nil ) then
 		return
 	end
@@ -197,7 +196,7 @@ function ClassLessServer:Initialize()
 	RegisterPlayerEvent( 3,
 		function( iEvent, hPlayer )
 			local iPlayerGUID = hPlayer:GetGUIDLow()
-			hThis.m_arrPlayerData[iPlayerGUID] = ClassLessPlayerData( iPlayerGUID )
+			hThis.m_arrPlayerData[iPlayerGUID] = CLPlayerData( iPlayerGUID )
 			local bLoaded = hThis.m_arrPlayerData[iPlayerGUID]:DBLoad()
 			if ( not bLoaded ) then
 				hThis.m_arrPlayerData[iPlayerGUID]:DBCreate()
@@ -267,11 +266,13 @@ function ClassLessServer:Initialize()
 			-- Update Client
 			AIO.Handle( hPlayer, hThis.m_strAIOHandlerName, "OnLevelChange",
 				hThis:GetFreeSpellPoints( hPlayer ),
+				hThis:GetFreePetSpellPoints( hPlayer ),
 				hThis:GetFreeTalentPoints( hPlayer ),
+				hThis:GetFreePetTalentPoints( hPlayer ),
 				hThis:GetFreeGlyphMajorSlots( hPlayer ),
 				hThis:GetFreeGlyphMinorSlots( hPlayer ),
-				ClassLessSpellDesc:EncodeSpells( hThis:GetPlayerSpells(hPlayer) ),
-				ClassLessTalentDesc:EncodeTalents( hThis:GetPlayerTalents(hPlayer) )
+				hThis:GetPlayerSpells(hPlayer):Encode(),
+				hThis:GetPlayerTalents(hPlayer):Encode()
 			)
 			
 			PrintInfo( "[ClassLess][PlayerEvent] Player LevelUp Update (GUIDLow = " .. iPlayerGUID .. ") !" )
@@ -298,43 +299,46 @@ function ClassLessServer:Initialize()
 		PrintInfo( "[ClassLess][AIO] Session Validation Succeeded !" )
 		
 		-- Decode Spells / Talents / Glyphs
-		local arrPendingSpells = ClassLessSpellDesc:DecodeSpells( arrEncodedSpells )
-		local arrPendingTalents = ClassLessTalentDesc:DecodeTalents( arrEncodedTalents )
-		local arrPendingGlyphs = ClassLessGlyphDesc:DecodeGlyphs( arrEncodedGlyphs )
+		local mapPendingSpells = CLSpellMap()
+		local mapPendingTalents = CLTalentMap()
+		local mapPendingGlyphs = CLGlyphMap()
+		mapPendingSpells:Decode( arrEncodedSpells )
+		mapPendingTalents:Decode( arrEncodedTalents )
+		mapPendingGlyphs:Decode( arrEncodedGlyphs )
 		
 		-- Get Player GUID
 		local iPlayerGUID = hPlayer:GetGUIDLow()
 		
 		-- Add Pending Spells
-		local iSpellCount = #arrPendingSpells
-		for i = 1, iSpellCount do
-			local hSpellDesc = arrPendingSpells[i]
-			hThis.m_arrPlayerData[iPlayerGUID]:AddSpell(
-				hSpellDesc:GetClassIndex(), hSpellDesc:GetSpecIndex(),
-				hSpellDesc:GetSpellIndex()
-			)
-		end
+		mapPendingSpells:EnumCallback(
+			function( hSpellDesc )
+				hThis.m_arrPlayerData[iPlayerGUID]:AddSpell(
+					hSpellDesc:GetClassIndex(), hSpellDesc:GetSpecIndex(),
+					hSpellDesc:GetSpellIndex()
+				)
+			end
+		)
 
 		-- Add Pending Talents
-		local iTalentCount = #arrPendingTalents
-		for i = 1, iTalentCount do
-			local hTalentDesc = arrPendingTalents[i]
-			hThis.m_arrPlayerData[iPlayerGUID]:AddTalent(
-				hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
-				hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot(),
-				hTalentDesc:GetCurrentRank()
-			)
-		end
+		mapPendingTalents:EnumCallback(
+			function( hTalentDesc )
+				hThis.m_arrPlayerData[iPlayerGUID]:AddTalent(
+					hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(),
+					hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot(),
+					hTalentDesc:GetCurrentRank()
+				)
+			end
+		)
 		
 		-- Add Pending Glyphs
-		local iGlyphCount = #arrPendingGlyphs
-		for i = 1, iGlyphCount do
-			local hGlyphDesc = arrPendingGlyphs[i]
-			hThis.m_arrPlayerData[iPlayerGUID]:AddGlyph(
-				hGlyphDesc:GetClassIndex(), hGlyphDesc:GetSpecIndex(),
-				hGlyphDesc:GetGlyphIndex()
-			)
-		end
+		mapPendingGlyphs:EnumCallback(
+			function( hGlyphDesc )
+				hThis.m_arrPlayerData[iPlayerGUID]:AddGlyph(
+					hGlyphDesc:GetClassIndex(), hGlyphDesc:GetSpecIndex(),
+					hGlyphDesc:GetGlyphIndex()
+				)
+			end
+		)
 		
 		-- Save Player
 		hThis.m_arrPlayerData[iPlayerGUID]:DBSave()
@@ -343,12 +347,14 @@ function ClassLessServer:Initialize()
 		-- Update Client
 		AIO.Handle( hPlayer, hThis.m_strAIOHandlerName, "OnCommitAbilities",
 			hThis:GetFreeSpellPoints( hPlayer ),
+			hThis:GetFreePetSpellPoints( hPlayer ),
 			hThis:GetFreeTalentPoints( hPlayer ),
+			hThis:GetFreePetTalentPoints( hPlayer ),
 			hThis:GetFreeGlyphMajorSlots( hPlayer ),
 			hThis:GetFreeGlyphMinorSlots( hPlayer ),
-			ClassLessSpellDesc:EncodeSpells( hThis:GetPlayerSpells(hPlayer) ),
-			ClassLessTalentDesc:EncodeTalents( hThis:GetPlayerTalents(hPlayer) ),
-			ClassLessGlyphDesc:EncodeGlyphs( hThis:GetPlayerGlyphs(hPlayer) )
+			hThis:GetPlayerSpells(hPlayer):Encode(),
+			hThis:GetPlayerTalents(hPlayer):Encode(),
+			hThis:GetPlayerGlyphs(hPlayer):Encode()
 		)
 		
 		PrintInfo( "[ClassLess][AIO] CommitAbilities Completed !" )
@@ -403,7 +409,9 @@ function ClassLessServer:Initialize()
 		-- Update Client
 		AIO.Handle( hPlayer, hThis.m_strAIOHandlerName, "OnResetAbilities",
 			hThis:GetFreeSpellPoints( hPlayer ),
+			hThis:GetFreePetSpellPoints( hPlayer ),
 			hThis:GetFreeTalentPoints( hPlayer ),
+			hThis:GetFreePetTalentPoints( hPlayer ),
 			hThis:GetFreeGlyphMajorSlots( hPlayer ),
 			hThis:GetFreeGlyphMinorSlots( hPlayer ),
 			hThis:GetResetCost( hPlayer )
@@ -414,22 +422,12 @@ function ClassLessServer:Initialize()
 	
 	PrintInfo( "[ClassLess][Server] AIO Handler ResetAbilities Registered !" )
 	
-	-- Initialize Spell/Talent/Glyph Data
-	self.m_hCLDataSpells = ClassLessDataSpells()
-	self.m_hCLDataSpells:Initialize()
-	
-	self.m_hCLDataTalents = ClassLessDataTalents()
-	self.m_hCLDataTalents:Initialize()
-	
-	self.m_hCLDataGlyphs = ClassLessDataGlyphs()
-	self.m_hCLDataGlyphs:Initialize()
-	
 	-- Initialize Player Data
 	local arrAllPlayers = GetPlayersInWorld()
 	local iPlayerCount = #arrAllPlayers
 	for i = 1, iPlayerCount do
 		local iPlayerGUID = arrAllPlayers[i]:GetGUIDLow()
-		self.m_arrPlayerData[iPlayerGUID] = ClassLessPlayerData( iPlayerGUID )
+		self.m_arrPlayerData[iPlayerGUID] = CLPlayerData( iPlayerGUID )
 		local bLoaded = self.m_arrPlayerData[iPlayerGUID]:DBLoad()
 		if ( not bLoaded ) then
 			self.m_arrPlayerData[iPlayerGUID]:DBCreate()
@@ -443,25 +441,27 @@ end
 -- Entry Point
 PrintInfo( "[ClassLess][Server] Server Initialization ..." )
 
-CLServer = ClassLessServer()
-CLServer:Initialize()
+local hServerInstance = CLServer:GetInstance()
 
 -- Async IO
 local function ClientInit( hMessage, hPlayer )
 	PrintInfo( "[ClassLess][AIO] (Server-Side) ClientInit !" )
 
     -- Initialize Client
-    AIO.Handle( hPlayer, CLServer.m_strAIOHandlerName, "OnClientInit",
-		CLServer:GetFreeSpellPoints( hPlayer ),
-		CLServer:GetFreeTalentPoints( hPlayer ),
-		CLServer:GetRequiredTalentPointsPerTier(),
-		CLServer:GetFreeGlyphMajorSlots( hPlayer ),
-		CLServer:GetFreeGlyphMinorSlots( hPlayer ),
-		CLServer:GetResetCost( hPlayer ),
-		ClassLessSpellDesc:EncodeSpells( CLServer:GetPlayerSpells(hPlayer) ),
-		ClassLessTalentDesc:EncodeTalents( CLServer:GetPlayerTalents(hPlayer) ),
-		ClassLessGlyphDesc:EncodeGlyphs( CLServer:GetPlayerGlyphs(hPlayer) ),
-		CLServer.m_strServerToken
+    AIO.Handle( hPlayer, hServerInstance.m_strAIOHandlerName, "OnClientInit",
+		hServerInstance:GetFreeSpellPoints( hPlayer ),
+		hServerInstance:GetFreePetSpellPoints( hPlayer ),
+		hServerInstance:GetFreeTalentPoints( hPlayer ),
+		hServerInstance:GetFreePetTalentPoints( hPlayer ),
+		CLConfig.RequiredTalentPointsPerTier,
+		CLConfig.RequiredPetTalentPointsPerTier,
+		hServerInstance:GetFreeGlyphMajorSlots( hPlayer ),
+		hServerInstance:GetFreeGlyphMinorSlots( hPlayer ),
+		hServerInstance:GetResetCost( hPlayer ),
+		hServerInstance:GetPlayerSpells(hPlayer):Encode(),
+		hServerInstance:GetPlayerTalents(hPlayer):Encode(),
+		hServerInstance:GetPlayerGlyphs(hPlayer):Encode(),
+		hServerInstance.m_strServerToken
 	)
 
 	return hMessage

@@ -9,6 +9,7 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLSpellDesc then require("CLMapSpells") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -19,133 +20,18 @@ if AIO.IsServer() then
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- Constants
-if ( CLClassCount == nil ) then
-	CLClassCount = 10
-end
-if ( CLClassNames == nil ) then
-	CLClassNames = { "DeathKnight", "Druid", "Hunter", "Mage", "Paladin", "Priest", "Rogue", "Shaman", "Warlock", "Warrior" }
-end
-
-if ( CLClassSpecCount == nil ) then
-	CLClassSpecCount = 3
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessSpellDesc - Declaration
-ClassLessSpellDesc = class({
+-- CLDataSpells : Declaration
+CLDataSpells = class({
 	-- Static Members
+	sm_hInstance = nil
 })
-
-function ClassLessSpellDesc:init( iClassIndex, iSpecIndex, iSpellIndex, arrSpellIDs, arrSpellLevels )
-	-- Members
-	self.m_iClassIndex = iClassIndex
-	self.m_iSpecIndex = iSpecIndex
-	self.m_iSpellIndex = iSpellIndex
-	
-	self.m_arrSpellIDs = arrSpellIDs
-	self.m_arrSpellLevels = arrSpellLevels
-	
-	self.m_iCurrentRank = 0
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessSpellDesc : Encoding / Decoding
-function ClassLessSpellDesc:ToArray( hSpellDesc )
-	return {
-		hSpellDesc.m_iClassIndex, hSpellDesc.m_iSpecIndex, hSpellDesc.m_iSpellIndex,
-		hSpellDesc.m_arrSpellIDs, hSpellDesc.m_arrSpellLevels, hSpellDesc.m_iCurrentRank
-	}
-end
-function ClassLessSpellDesc:FromArray( arrSpellDesc )
-	local hSpellDesc = ClassLessSpellDesc(
-		arrSpellDesc[1], arrSpellDesc[2], arrSpellDesc[3],
-		arrSpellDesc[4], arrSpellDesc[5]
-	)
-	hSpellDesc.m_iCurrentRank = arrSpellDesc[6]
-	return hSpellDesc
-end
-
-function ClassLessSpellDesc:EncodeSpells( arrSpells )
-	local arrEncodedSpells = {}
-	for i = 1, #arrSpells do
-		arrEncodedSpells[i] = ClassLessSpellDesc:ToArray( arrSpells[i] )
+function CLDataSpells:GetInstance()
+	if ( self.sm_hInstance == nil ) then
+		self.sm_hInstance = CLDataSpells()
+		self.sm_hInstance:Initialize()
 	end
-	return arrEncodedSpells
+	return self.sm_hInstance
 end
-function ClassLessSpellDesc:DecodeSpells( arrSpells )
-	local arrDecodedSpells = {}
-	for i = 1, #arrSpells do
-		arrDecodedSpells[i] = ClassLessSpellDesc:FromArray( arrSpells[i] )
-	end
-	return arrDecodedSpells
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessSpellDesc : Getters / Setters
-function ClassLessSpellDesc:GetClassIndex()
-	return self.m_iClassIndex
-end
-function ClassLessSpellDesc:GetSpecIndex()
-	return self.m_iSpecIndex
-end
-function ClassLessSpellDesc:GetSpellIndex()
-	return self.m_iSpellIndex
-end
-
-function ClassLessSpellDesc:GetRankCount()
-	return #( self.m_arrSpellIDs )
-end
-function ClassLessSpellDesc:GetSpellID( iRank )
-	return self.m_arrSpellIDs[iRank]
-end
-function ClassLessSpellDesc:GetSpellLevel( iRank )
-	return self.m_arrSpellLevels[iRank]
-end
-
-function ClassLessSpellDesc:GetCurrentRank()
-	return self.m_iCurrentRank
-end
-function ClassLessSpellDesc:SetCurrentRank( iRank )
-	self.m_iCurrentRank = iRank
-end
-function ClassLessSpellDesc:GetCurrentSpellID()
-	return self.m_arrSpellIDs[self.m_iCurrentRank]
-end
-function ClassLessSpellDesc:GetCurrentSpellLevel()
-	return self.m_arrSpellLevels[self.m_iCurrentRank]
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessSpellDesc : Methods
-function ClassLessSpellDesc:GetIcon()
-	local strName, iRank, hIcon = GetSpellInfo( self.m_arrSpellIDs[1] )
-	return hIcon
-end
-
-function ClassLessSpellDesc:GetRankFromLevel( iPlayerLevel )
-	local iRankCount = self:GetRankCount()
-	local iRank = 0
-	for i = 1, iRankCount do
-		local iSpellLevel = self:GetSpellLevel( i )
-		if ( iPlayerLevel >= iSpellLevel ) then
-			iRank = i
-		else
-			break
-		end
-	end
-	return iRank
-end
-function ClassLessSpellDesc:GetSpellIDFromLevel( iPlayerLevel )
-	local iRank = self:GetRankFromLevel( iPlayerLevel )
-	return self:GetSpellID( iRank )
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessDataSpells : Declaration
-ClassLessDataSpells = class({
-	-- Static Members
-})
 
 -- Format :
 -- m_arrSpells[classname][specindex] = {
@@ -153,33 +39,33 @@ ClassLessDataSpells = class({
 --     	[2] - string : spectexture
 --		[3] - array( iSpellIndex -> {arrSpellIDs, arrSpellLevels} )
 -- }
-function ClassLessDataSpells:init()
+function CLDataSpells:init()
 	-- Members
 	self.m_arrSpells = nil
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataSpells : Getters / Setters
-function ClassLessDataSpells:GetClassSpecName( iClassIndex, iSpecIndex )
+-- CLDataSpells : Getters / Setters
+function CLDataSpells:GetClassSpecName( iClassIndex, iSpecIndex )
 	return self.m_arrSpells[CLClassNames[iClassIndex]][iSpecIndex][1]
 end
-function ClassLessDataSpells:GetClassSpecTexture( iClassIndex, iSpecIndex )
+function CLDataSpells:GetClassSpecTexture( iClassIndex, iSpecIndex )
 	return self.m_arrSpells[CLClassNames[iClassIndex]][iSpecIndex][2]
 end
 
-function ClassLessDataSpells:GetSpellCount( iClassIndex, iSpecIndex )
+function CLDataSpells:GetSpellCount( iClassIndex, iSpecIndex )
 	return #( self.m_arrSpells[CLClassNames[iClassIndex]][iSpecIndex][3] )
 end
 
-function ClassLessDataSpells:GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
-	return ClassLessSpellDesc(
+function CLDataSpells:GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
+	return CLSpellDesc(
 		iClassIndex, iSpecIndex, iSpellIndex,
 		self.m_arrSpells[CLClassNames[iClassIndex]][iSpecIndex][3][iSpellIndex][1],
 		self.m_arrSpells[CLClassNames[iClassIndex]][iSpecIndex][3][iSpellIndex][2]
 	)
 end
 
-function ClassLessDataSpells:SearchSpell( iSpellID )
+function CLDataSpells:SearchSpell( iSpellID )
 	for iClassIndex = 1, CLClassCount do
 		for iSpecIndex = 1, CLClassSpecCount do
 			local iSpellCount = self:GetSpellCount( iClassIndex, iSpecIndex )
@@ -198,8 +84,8 @@ function ClassLessDataSpells:SearchSpell( iSpellID )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataSpells : Initialization
-function ClassLessDataSpells:Initialize()
+-- CLDataSpells : Initialization
+function CLDataSpells:Initialize()
 	if ( self.m_arrSpells ~= nil ) then
 		return
 	end
@@ -354,6 +240,7 @@ function ClassLessDataSpells:Initialize()
 				{ {34074}, {20} },
 				{ {1462}, {24} },
 				{ {13161}, {30} },
+				{ {19577}, {30} },
 				{ {13159}, {40} },
 				{ {20043,20190,27045,49071}, {46,56,68,76} },
 				{ {34026}, {66} },
@@ -846,6 +733,53 @@ function ClassLessDataSpells:Initialize()
 				{ {23922,23923,23924,23925,25258,30356,47487,47488}, {40,48,54,60,66,70,75,80} },
 				{ {23920}, {64} },
 				{ {3411}, {70} }
+			}
+		}
+	}
+	
+	-- Pet
+	self.m_arrSpells.Pet = {
+		{
+			"Cunning", "Interface\\TalentFrame\\HunterPetCunning", {
+				{ {50519,53564,53565,53566,53567,53568}, {1,16,32,48,64,80} },
+				{ {50541,53537,53538,53540,53542,53543}, {1,16,32,48,64,80} },
+				{ {34889,35323}, {1,16} },
+				{ {50479}, {1} },
+				{ {50518,53558,53559,53560,53561,53562}, {1,16,32,48,64,80} },
+				{ {35387,35389,35392}, {1,16,32} },
+				{ {4167}, {1} },
+				{ {50274}, {1} },
+				{ {24844,25008,25009,25010,25011,25012}, {1,16,32,48,64,80} }
+			}
+		},
+		{
+			"Ferocity", "Interface\\TalentFrame\\HunterPetFerocity", {
+				{ {16827,16828,16829,16830,16831,16832,3010,3009,27049,52471,52472}, {1,8,16,24,32,40,48,56,64,72,80} },
+				{ {49966,49967,49968,49969,49970,49971,49972,49973,49974,52475,52476}, {1,8,16,24,32,40,48,56,64,72,80} },
+				{ {17253,17255,17256,17257,17258,17259,17260,17261,27050,52473,52474}, {1,8,16,24,32,40,48,56,64,72,80} },
+				
+				{ {24423,24577,24578,24579,27051}, {1,16,32,48,64} },
+				{ {24450,24452,24453}, {1,30,50} },
+				{ {50271,53571,53572,53573,53574,53575}, {1,16,32,48,64,80} },
+				{ {50318,52012,52013,52014,52015,52016}, {1,16,32,48,64,80} },
+				{ {50498}, {1} },
+				{ {24604}, {1} },
+				{ {50285}, {6} },
+			}
+		},
+		{
+			"Tenacity", "Interface\\TalentFrame\\HunterPetTenacity", {
+				{ {2649,14916,14917,14918,14919,14920,14921,27047}, {1,10,20,30,40,50,60,70} },
+				{ {1742}, {20} },
+				
+				{ {50256,53526,53528,53529,53532,53533}, {1,16,32,48,64,80} },
+				{ {35290,35291,35292,35293,35294,35295}, {1,16,32,48,64,80} },
+				{ {50245,53544,53545,53546,53547,53548}, {1,16,32,48,64,80} },
+				{ {50433,52395,52396,52397,52398,52399}, {1,16,32,48,64,80} },
+				{ {26090}, {1} },
+				{ {24640,24583,24586,24587,27060}, {1,16,32,48,64} },
+				{ {26064}, {1} },
+				{ {35346}, {60} }
 			}
 		}
 	}

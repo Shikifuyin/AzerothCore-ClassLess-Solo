@@ -9,6 +9,9 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLDataSpells then require("CLDataSpells") end
+if not CLDataTalents then require("CLDataTalents") end
+if not CLDataGlyphs then require("CLDataGlyphs") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -16,179 +19,176 @@ if not class then require("class") end
 -- Server-side Only !
 
 -------------------------------------------------------------------------------------------------------------------
--- Constants
+-- Internal Helpers
+local function _Learn( hPlayer, iSpellID )
+	if ( not hPlayer:HasSpell(iSpellID) ) then
+		hPlayer:LearnSpell( iSpellID )
+	end
+end
+local function _Unlearn( hPlayer, iSpellID )
+	if ( hPlayer:HasSpell(iSpellID) ) then
+		hPlayer:RemoveSpell( iSpellID, 255, false )
+	end
+end
+
+local function _GetPlayerPet( hPlayer )
+	return hPlayer:GetMap():GetWorldObject( hPlayer:GetPetGUID() )
+end
+local function _PetLearn( hPlayer, iSpellID )
+	-- No way to implement this for now in Eluna ?
+end
+local function _PetUnlearn( hPlayer, iSpellID )
+	-- No way to implement this for now in Eluna ?
+end
+
+local function _ArrayFromString( strData )
+    local arrResult = {}
+    if ( not strData or strData == "" ) then
+		return arrResult
+	end
+	for i in string.gmatch(strData, "([^,]+)") do
+		table.insert(arrResult, tonumber(i))
+	end
+    return arrResult
+end
+local function _ArrayToString( arrData )
+    local strResult = ""
+    if ( #arrData > 1 ) then
+        strResult = table.concat(arrData, ",")
+    elseif ( #arrData == 1 ) then
+        strResult = arrData[1]
+    end
+    return strResult
+end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessPlayerData - Declaration
-ClassLessPlayerData = class({
+-- CLPlayerData - Declaration
+CLPlayerData = class({
 	-- Static Members
 })
 
-function ClassLessPlayerData:init( iPlayerGUID )
+function CLPlayerData:init( iPlayerGUID )
 	-- Members
 	self.m_iGUID = iPlayerGUID
 	
-	self.m_arrSpells = {} -- array( ClassLessSpellDesc )
-	self.m_arrTalents = {} -- array( ClassLessTalentDesc )
-	self.m_arrGlyphs = {} -- array( ClassLessGlyphDesc )
+	self.m_mapSpells = CLSpellMap()
+	self.m_mapTalents = CLTalentMap()
+	self.m_mapGlyphs = CLGlyphMap()
 	self.m_iResetCounter = 0
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessPlayerData : Methods - General
-function ClassLessPlayerData:GetGUID()
+-- CLPlayerData : Methods - General
+function CLPlayerData:GetGUID()
 	return self.m_iGUID
 end
 
-function ClassLessPlayerData:GetResetCounter()
+function CLPlayerData:GetResetCounter()
 	return self.m_iResetCounter
 end
-function ClassLessPlayerData:CanReset()
-	return ( (self:GetSpellCount() + self:GetTalentCount() + self:GetGlyphCount()) > 0 )
+function CLPlayerData:CanReset()
+	return ( not (self.m_mapSpells:IsEmpty() and self.m_mapTalents:IsEmpty() and self.m_mapGlyphs:IsEmpty()) )
 end
 
-function ClassLessPlayerData:Reset()
+function CLPlayerData:Reset()
 	-- Get Player
 	local hPlayer = GetPlayerByGUID( GetPlayerGUID(self.m_iGUID) )
 	
 	-- Remove all Spells
-	local iSpellCount = #(self.m_arrSpells)
-	for i = 1, iSpellCount do
-		local iSpellID = self.m_arrSpells[i]:GetCurrentSpellID()
-		if ( hPlayer:HasSpell(iSpellID) ) then
-			hPlayer:RemoveSpell( iSpellID, 255, false )
+	self.m_mapSpells:EnumCallback(
+		function( hSpellDesc )
+			_Unlearn( hPlayer, hSpellDesc:GetCurrentSpellID() )
 		end
-	end
+	)
 
 	-- Remove all Talents
-	local iTalentCount = #(self.m_arrTalents)
-	for i = 1, iTalentCount do
-		local iTalentID = self.m_arrTalents[i]:GetCurrentTalentID()
-		if ( hPlayer:HasSpell(iTalentID) ) then
-			hPlayer:RemoveSpell( iTalentID, 255, false )
+	self.m_mapTalents:EnumCallback(
+		function( hTalentDesc )
+			_Unlearn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 		end
-	end
+	)
 	
 	-- Remove all Glyphs
-	local iGlyphCount = #(self.m_arrGlyphs)
-	for i = 1, iGlyphCount do
-		local iGlyphID = self.m_arrGlyphs[i]:GetGlyphID()
-		if ( hPlayer:HasSpell(iGlyphID) ) then
-			hPlayer:RemoveSpell( iGlyphID, 255, false )
+	self.m_mapGlyphs:EnumCallback(
+		function( hGlyphDesc )
+			_Unlearn( hPlayer, hGlyphDesc:GetGlyphID() )
 		end
-	end
+	)
 	
 	-- Reset & Increment Counter
-	self.m_arrSpells = {}
-	self.m_arrTalents = {}
-	self.m_arrGlyphs = {}
+	self.m_mapSpells:Clear()
+	self.m_mapTalents:Clear()
+	self.m_mapGlyphs:Clear()
 	self.m_iResetCounter = self.m_iResetCounter + 1
 end
 
-function ClassLessPlayerData:UpdateAllSpellsRanks()
+function CLPlayerData:UpdateAllSpellsRanks()
 	-- Get Player & Level
 	local hPlayer = GetPlayerByGUID( GetPlayerGUID(self.m_iGUID) )
 	local iNewLevel = hPlayer:GetLevel()
 	
-	-- Check All Spells for Rank upgrade
-	local iSpellCount = self:GetSpellCount()
-	for i = 1, iSpellCount do
-		local iCurrentRank = self.m_arrSpells[i]:GetCurrentRank()
-		local iNewRank = self.m_arrSpells[i]:GetRankFromLevel( iNewLevel )
-		if ( iNewRank ~= iCurrentRank ) then
-			-- Remove previous Rank
-			local iOldSpellID = self.m_arrSpells[i]:GetCurrentSpellID()
-			if ( hPlayer:HasSpell(iOldSpellID) ) then
-				hPlayer:RemoveSpell( iOldSpellID, 255, false )
-			end
-			
-			-- Update Rank
-			self.m_arrSpells[i]:SetCurrentRank( iNewRank )
-			
-			-- Add new Rank
-			local iNewSpellID = self.m_arrSpells[i]:GetCurrentSpellID()
-			if ( not hPlayer:HasSpell(iNewSpellID) ) then
-				hPlayer:LearnSpell( iNewSpellID )
-			end
-		end
-	end
-	
-	-- Check All TalentSpells for Rank upgrade
-	local iTalentCount = self:GetTalentCount()
-	for i = 1, iTalentCount do
-		if ( self.m_arrTalents[i]:IsTalentSpell() ) then
-			local iCurrentRank = self.m_arrTalents[i]:GetCurrentRank()
-			local iNewRank = self.m_arrTalents[i]:GetTalentSpellRankFromLevel( iNewLevel )
+	-- Check All Spells for Rank Update
+	self.m_mapSpells:EnumCallback(
+		function( hSpellDesc )
+			local iCurrentRank = hSpellDesc:GetCurrentRank()
+			local iNewRank = hSpellDesc:GetRankFromLevel( iNewLevel )
 			if ( iNewRank ~= iCurrentRank ) then
 				-- Remove previous Rank
-				local iOldTalentSpellID = self.m_arrTalents[i]:GetCurrentTalentID()
-				if ( hPlayer:HasSpell(iOldTalentSpellID) ) then
-					hPlayer:RemoveSpell( iOldTalentSpellID, 255, false )
-				end
+				_Unlearn( hPlayer, hSpellDesc:GetCurrentSpellID() )
 				
 				-- Update Rank
-				self.m_arrTalents[i]:SetCurrentRank( iNewRank )
-				
+				self.m_mapSpells:SetSpellRank( hSpellDesc:GetClassIndex(), hSpellDesc:GetSpecIndex(), hSpellDesc:GetSpellIndex(), iNewRank )
+
 				-- Add new Rank
-				local iNewTalentSpellID = self.m_arrTalents[i]:GetCurrentTalentID()
-				if ( not hPlayer:HasSpell(iNewTalentSpellID) ) then
-					hPlayer:LearnSpell( iNewTalentSpellID )
-				end
+				_Learn( hPlayer, hSpellDesc:GetCurrentSpellID() )
 			end
 		end
-	end
+	)
+	
+	-- Check All TalentSpells for Rank Update
+	self.m_mapTalents:EnumCallback(
+		function( hTalentDesc )
+			if ( not hTalentDesc:IsTalentSpell() ) then
+				return
+			end
+			local iCurrentRank = hTalentDesc:GetCurrentRank()
+			local iNewRank = hTalentDesc:GetTalentSpellRankFromLevel( iNewLevel )
+			if ( iNewRank ~= iCurrentRank ) then
+				-- Remove previous Rank
+				_Unlearn( hPlayer, hTalentDesc:GetCurrentTalentID() )
+				
+				-- Update Rank
+				self.m_mapTalents:SetTalentRank( hTalentDesc:GetClassIndex(), hTalentDesc:GetSpecIndex(), hTalentDesc:GetGridTier(), hTalentDesc:GetGridSlot(), iNewRank )
+
+				-- Add new Rank
+				_Learn( hPlayer, hTalentDesc:GetCurrentTalentID() )
+			end
+		end
+	)
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessPlayerData : Methods - Spells
-function ClassLessPlayerData:GetSpells()
-	return self.m_arrSpells
-end
-function ClassLessPlayerData:GetSpellCount()
-	return #( self.m_arrSpells )
-end
-function ClassLessPlayerData:GetSpellDesc( iIndex )
-	return self.m_arrSpells[iIndex]
-end
-function ClassLessPlayerData:GetSpellCost( iIndex )
-	return 1
+-- CLPlayerData : Methods - Spells
+function CLPlayerData:GetSpellMap()
+	return self.m_mapSpells
 end
 
-function ClassLessPlayerData:HasSpell( iClassIndex, iSpecIndex, iSpellIndex )
-	return ( self:GetSpellIndex(iClassIndex, iSpecIndex, iSpellIndex) ~= 0 )
-end
-
-function ClassLessPlayerData:GetSpellIndex( iClassIndex, iSpecIndex, iSpellIndex )
-	local iSpellCount = self:GetSpellCount()
-	for i = 1, iSpellCount do
-		local hSpellDesc = self:GetSpellDesc( i )
-		if ( iClassIndex == hSpellDesc:GetClassIndex() and iSpecIndex == hSpellDesc:GetSpecIndex() and
-			 iSpellIndex == hSpellDesc:GetSpellIndex() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessPlayerData:GetAllocatedSpellPoints()
-	local iSpellCount = self:GetSpellCount()
-	local iAllocatedSpellPoints = 0
-	for i = 1, iSpellCount do
-		iAllocatedSpellPoints = iAllocatedSpellPoints + self:GetSpellCost( i )
-	end
-	return iAllocatedSpellPoints
-end
-
-function ClassLessPlayerData:AddSpell( iClassIndex, iSpecIndex, iSpellIndex )
+function CLPlayerData:AddSpell( iClassIndex, iSpecIndex, iSpellIndex )
 	-- Get Spell Descriptor
-	local hSpellDesc = CLServer:GetDataSpells():GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
+	local hSpellDesc = CLDataSpells:GetInstance():GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
 	
 	-- Get Player
 	local hPlayer = GetPlayerByGUID( GetPlayerGUID(self.m_iGUID) )
 	
 	-- Check if we have enough points
-	if ( CLServer:GetFreeSpellPoints(hPlayer) <= 0 ) then
-		return
+	if hSpellDesc:IsPetSpell() then
+		if ( CLServer:GetInstance():GetFreePetSpellPoints(hPlayer) <= 0 ) then
+			return
+		end
+	else
+		if ( CLServer:GetInstance():GetFreeSpellPoints(hPlayer) <= 0 ) then
+			return
+		end
 	end
 	
 	-- Compute appropriate Rank
@@ -198,27 +198,22 @@ function ClassLessPlayerData:AddSpell( iClassIndex, iSpecIndex, iSpellIndex )
 	end
 	
 	-- Check if already present
-	local iIndex = self:GetSpellIndex( iClassIndex, iSpecIndex, iSpellIndex )
-	if ( iIndex ~= 0 ) then
+	if self.m_mapSpells:HasSpell( hSpellDesc ) then
+		hSpellDesc = self.m_mapSpells:GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
+	
 		-- Check Rank
-		if ( self.m_arrSpells[iIndex]:GetCurrentRank() == iRank ) then
+		if ( hSpellDesc:GetCurrentRank() == iRank ) then
 			return
 		end
 		
 		-- Remove previous Rank
-		local iSpellID = self.m_arrSpells[iIndex]:GetCurrentSpellID()
-		if hPlayer:HasSpell( iSpellID ) then
-			hPlayer:RemoveSpell( iSpellID, 255, false )
-		end
+		_Unlearn( hPlayer, hSpellDesc:GetCurrentSpellID() )
 		
 		-- Update Rank
-		self.m_arrSpells[iIndex]:SetCurrentRank( iRank )
+		self.m_mapSpells:SetSpellRank( iClassIndex, iSpecIndex, iSpellIndex, iRank )
 		
 		-- Add current Rank
-		iSpellID = self.m_arrSpells[iIndex]:GetCurrentSpellID()
-		if ( not hPlayer:HasSpell(iSpellID) ) then
-			hPlayer:LearnSpell( iSpellID )
-		end
+		_Learn( hPlayer, hSpellDesc:GetCurrentSpellID() )
 		
 		return
 	end
@@ -227,76 +222,33 @@ function ClassLessPlayerData:AddSpell( iClassIndex, iSpecIndex, iSpellIndex )
 	hSpellDesc:SetCurrentRank( iRank )
 	
 	-- Add current Rank
-	local iSpellID = hSpellDesc:GetCurrentSpellID()
-	if ( not hPlayer:HasSpell(iSpellID) ) then
-		hPlayer:LearnSpell( iSpellID )
-	end
+	_Learn( hPlayer, hSpellDesc:GetCurrentSpellID() )
 	
 	-- Add Spell
-	table.insert( self.m_arrSpells, hSpellDesc )
+	self.m_mapSpells:AddSpell( hSpellDesc )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessPlayerData : Methods - Talents
-function ClassLessPlayerData:GetTalents()
-	return self.m_arrTalents
-end
-function ClassLessPlayerData:GetTalentCount()
-	return #( self.m_arrTalents )
-end
-function ClassLessPlayerData:GetTalentDesc( iIndex )
-	return self.m_arrTalents[iIndex]
-end
-function ClassLessPlayerData:GetTalentCost( iIndex )
-	return self.m_arrTalents[iIndex]:GetCurrentCost()
+-- CLPlayerData : Methods - Talents
+function CLPlayerData:GetTalentMap()
+	return self.m_mapTalents
 end
 
-function ClassLessPlayerData:HasTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	return ( self:GetTalentIndex(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ~= 0 )
-end
-
-function ClassLessPlayerData:GetTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	local iTalentCount = self:GetTalentCount()
-	for i = 1, iTalentCount do
-		local hTalentDesc = self:GetTalentDesc( i )
-		if ( iClassIndex == hTalentDesc:GetClassIndex() and iSpecIndex == hTalentDesc:GetSpecIndex() and
-			 iGridTier == hTalentDesc:GetGridTier() and iGridSlot == hTalentDesc:GetGridSlot() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessPlayerData:GetAllocatedTalentPoints()
-	local iTalentCount = self:GetTalentCount()
-	local iAllocatedTalentPoints = 0
-	for i = 1, iTalentCount do
-		iAllocatedTalentPoints = iAllocatedTalentPoints + self:GetTalentCost( i )
-	end
-	return iAllocatedTalentPoints
-end
-function ClassLessPlayerData:GetSpecAllocatedTalentPoints( iClassIndex, iSpecIndex )
-	local iTalentCount = self:GetTalentCount()
-	local iAllocatedTalentPoints = 0
-	for i = 1, iTalentCount do
-		local hTalentDesc = self:GetTalentDesc( i )
-		if ( hTalentDesc:GetClassIndex() == iClassIndex and hTalentDesc:GetSpecIndex() == iSpecIndex ) then
-			iAllocatedTalentPoints = iAllocatedTalentPoints + self:GetTalentCost( i )
-		end
-	end
-	return iAllocatedTalentPoints
-end
-
-function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot, iTalentRank )
+function CLPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot, iTalentRank )
 	-- Get Talent Descriptor
-	local hTalentDesc = CLServer:GetDataTalents():GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	local hTalentDesc = CLDataTalents:GetInstance():GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	
 	-- Get Player
 	local hPlayer = GetPlayerByGUID( GetPlayerGUID(self.m_iGUID) )
 	
 	-- Check Grid Tier Requirement
-	local iSpecAllocatedTalentPoints = self:GetSpecAllocatedTalentPoints( iClassIndex, iSpecIndex )
-	local iTierRequiredTalentPoints = CLServer:GetRequiredTalentPoints( iGridTier )
+	local iSpecAllocatedTalentPoints = self.m_mapTalents:GetSpecTalentPoints( iClassIndex, iSpecIndex )
+	local iTierRequiredTalentPoints = 0
+	if hTalentDesc:IsPetTalent() then
+		iTierRequiredTalentPoints = CLServer:GetInstance():GetRequiredPetTalentPoints( iGridTier )
+	else
+		iTierRequiredTalentPoints = CLServer:GetInstance():GetRequiredTalentPoints( iGridTier )
+	end
 	if ( iSpecAllocatedTalentPoints < iTierRequiredTalentPoints ) then
 		return
 	end
@@ -305,24 +257,29 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 	local iRequiredTalentGridTier, iRequiredTalentGridSlot = hTalentDesc:GetRequiredTalent()
 	if ( iRequiredTalentGridTier ~= 0 and iRequiredTalentGridSlot ~= 0 ) then
 		-- Must be present
-		local iRequiredTalentIndex = self:GetTalentIndex( iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot )
-		if ( iRequiredTalentIndex == 0 ) then
+		if ( not self.m_mapTalents:HasTalent(iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot) ) then
 			return
 		end
 		-- Must be maxed
-		local hRequiredTalentDesc = self:GetTalentDesc( iRequiredTalentIndex )
+		local hRequiredTalentDesc = self.m_mapTalents:GetTalentDesc( iClassIndex, iSpecIndex, iRequiredTalentGridTier, iRequiredTalentGridSlot )
 		if ( not hRequiredTalentDesc:IsMaxed() ) then
 			return
 		end
 	end
 	
 	-- TalentSpell case
-	if ( hTalentDesc:IsTalentSpell() ) then
+	if hTalentDesc:IsTalentSpell() then
 		-- Check if we have enough points
-		if ( CLServer:GetFreeTalentPoints(hPlayer) <= 0 ) then
-			return
+		if hTalentDesc:IsPetTalent() then
+			if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) <= 0 ) then
+				return
+			end
+		else
+			if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) <= 0 ) then
+				return
+			end
 		end
-	
+		
 		-- Compute appropriate Rank
 		local iRank = hTalentDesc:GetTalentSpellRankFromLevel( hPlayer:GetLevel() )
 		if ( iRank == 0 ) then
@@ -330,27 +287,22 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 		end
 		
 		-- Check if already present
-		local iIndex = self:GetTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-		if ( iIndex ~= 0 ) then
+		if ( self.m_mapTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
+			hTalentDesc = self.m_mapTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+			
 			-- Check Rank
-			if ( self.m_arrTalents[iIndex]:GetCurrentRank() == iRank ) then
+			if ( hTalentDesc:GetCurrentRank() == iRank ) then
 				return
 			end
 			
 			-- Remove previous Rank
-			local iTalentID = self.m_arrTalents[iIndex]:GetCurrentTalentID()
-			if hPlayer:HasSpell( iTalentID ) then
-				hPlayer:RemoveSpell( iTalentID, 255, false )
-			end
+			_Unlearn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 			
 			-- Update Rank
-			self.m_arrTalents[iIndex]:SetCurrentRank( iRank )
+			self.m_mapTalents:SetTalentRank( iClassIndex, iSpecIndex, iGridTier, iGridSlot, iRank )
 			
 			-- Add current Rank
-			iTalentID = self.m_arrTalents[iIndex]:GetCurrentTalentID()
-			if ( not hPlayer:HasSpell(iTalentID) ) then
-				hPlayer:LearnSpell( iTalentID )
-			end
+			_Learn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 			
 			return
 		end
@@ -359,13 +311,10 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 		hTalentDesc:SetCurrentRank( iRank )
 		
 		-- Add current Rank
-		local iTalentID = hTalentDesc:GetCurrentTalentID()
-		if ( not hPlayer:HasSpell(iTalentID) ) then
-			hPlayer:LearnSpell( iTalentID )
-		end
+		_Learn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 		
 		-- Add Talent
-		table.insert( self.m_arrTalents, hTalentDesc )
+		self.m_mapTalents:AddTalent( hTalentDesc )
 		
 		return
 	end
@@ -376,13 +325,14 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 	end
 	
 	-- Check if already present
-	local iIndex = self:GetTalentIndex( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	if ( iIndex ~= 0 ) then
+	if ( self.m_mapTalents:HasTalent(iClassIndex, iSpecIndex, iGridTier, iGridSlot) ) then
+		hTalentDesc = self.m_mapTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	
 		-- Get current Rank
-		local iRank = self.m_arrTalents[iIndex]:GetCurrentRank()
+		local iRank = hTalentDesc:GetCurrentRank()
 		
 		-- Check if already Maxed
-		if ( iRank == self.m_arrTalents[iIndex]:GetRankCount() ) then
+		if ( iRank == hTalentDesc:GetRankCount() ) then
 			return
 		end
 		
@@ -392,109 +342,69 @@ function ClassLessPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGri
 		end
 		
 		-- Check if we have enough points
-		if ( CLServer:GetFreeTalentPoints(hPlayer) <= (iTalentRank - iRank) ) then
-			return
+		if hTalentDesc:IsPetTalent() then
+			if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) <= (iTalentRank - iRank) ) then
+				return
+			end
+		else
+			if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) <= (iTalentRank - iRank) ) then
+				return
+			end
 		end
 		
 		-- Remove previous Rank
-		local iTalentID = self.m_arrTalents[iIndex]:GetCurrentTalentID()
-		if hPlayer:HasSpell( iTalentID ) then
-			hPlayer:RemoveSpell( iTalentID, 255, false )
-		end
+		_Unlearn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 		
 		-- Upgrade Rank
-		self.m_arrTalents[iIndex]:SetCurrentRank( iTalentRank )
+		self.m_mapTalents:SetTalentRank( iClassIndex, iSpecIndex, iGridTier, iGridSlot, iTalentRank )
 	
 		-- Add upgraded Rank
-		iTalentID = self.m_arrTalents[iIndex]:GetCurrentTalentID()
-		if ( not hPlayer:HasSpell(iTalentID) ) then
-			hPlayer:LearnSpell( iTalentID )
-		end
+		_Learn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 		
 		return
 	end
 	
 	-- Check if we have enough points
-	if ( CLServer:GetFreeTalentPoints(hPlayer) <= iTalentRank ) then
-		return
+	if hTalentDesc:IsPetTalent() then
+		if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) <= iTalentRank ) then
+			return
+		end
+	else
+		if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) <= iTalentRank ) then
+			return
+		end
 	end
 	
 	-- Apply appropriate Rank
 	hTalentDesc:SetCurrentRank( iTalentRank )
 	
 	-- Add current Rank
-	local iTalentID = hTalentDesc:GetCurrentTalentID()
-	if ( not hPlayer:HasSpell(iTalentID) ) then
-		hPlayer:LearnSpell( iTalentID )
-	end
+	_Learn( hPlayer, hTalentDesc:GetCurrentTalentID() )
 	
 	-- Add Talent
-	table.insert( self.m_arrTalents, hTalentDesc )
+	self.m_mapTalents:AddTalent( hTalentDesc )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessPlayerData : Methods - Glyphs
-function ClassLessPlayerData:GetGlyphs()
-	return self.m_arrGlyphs
-end
-function ClassLessPlayerData:GetGlyphCount()
-	return #( self.m_arrGlyphs )
-end
-function ClassLessPlayerData:GetGlyphDesc( iIndex )
-	return self.m_arrGlyphs[iIndex]
+-- CLPlayerData : Methods - Glyphs
+function CLPlayerData:GetGlyphMap()
+	return self.m_mapGlyphs
 end
 
-function ClassLessPlayerData:HasGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
-	return ( self:GetGlyphIndex(iClassIndex, iSpecIndex, iGlyphIndex) ~= 0 )
-end
-
-function ClassLessPlayerData:GetGlyphIndex( iClassIndex, iSpecIndex, iGlyphIndex )
-	local iGlyphCount = self:GetGlyphCount()
-	for i = 1, iGlyphCount do
-		local hGlyphDesc = self:GetGlyphDesc( i )
-		if ( iClassIndex == hGlyphDesc:GetClassIndex() and iSpecIndex == hGlyphDesc:GetSpecIndex() and
-			 iGlyphIndex == hGlyphDesc:GetGlyphIndex() ) then
-			return i
-		end
-	end
-	return 0
-end
-
-function ClassLessPlayerData:GetAllocatedGlyphMajorSlots()
-	local iGlyphCount = self:GetGlyphCount()
-	local iAllocatedGlyphSlots = 0
-	for i = 1, iGlyphCount do
-		if ( self:GetGlyphDesc(i):IsMajor() ) then
-			iAllocatedGlyphSlots = iAllocatedGlyphSlots + 1
-		end
-	end
-	return iAllocatedGlyphSlots
-end
-function ClassLessPlayerData:GetAllocatedGlyphMinorSlots()
-	local iGlyphCount = self:GetGlyphCount()
-	local iAllocatedGlyphSlots = 0
-	for i = 1, iGlyphCount do
-		if ( not self:GetGlyphDesc(i):IsMajor() ) then
-			iAllocatedGlyphSlots = iAllocatedGlyphSlots + 1
-		end
-	end
-	return iAllocatedGlyphSlots
-end
-
-function ClassLessPlayerData:AddGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
+function CLPlayerData:AddGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
 	-- Get Glyph Descriptor
-	local hGlyphDesc = CLServer:GetDataGlyphs():GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
+	local hGlyphDesc = CLDataGlyphs:GetInstance():GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
 	
 	-- Get Player
 	local hPlayer = GetPlayerByGUID( GetPlayerGUID(self.m_iGUID) )
 	
 	-- Check if we have a free slot
 	if hGlyphDesc:IsMajor() then
-		if ( CLServer:GetFreeGlyphMajorSlots() <= 0 ) then
+		if ( CLServer:GetInstance():GetFreeGlyphMajorSlots(hPlayer) <= 0 ) then
 			return
 		end
 	else
-		if ( CLServer:GetFreeGlyphMinorSlots() <= 0 ) then
+		if ( CLServer:GetInstance():GetFreeGlyphMinorSlots(hPlayer) <= 0 ) then
 			return
 		end
 	end
@@ -506,50 +416,26 @@ function ClassLessPlayerData:AddGlyph( iClassIndex, iSpecIndex, iGlyphIndex )
 	end
 	
 	-- Check if already present
-	local iIndex = self:GetGlyphIndex( iClassIndex, iSpecIndex, iGlyphIndex )
-	if ( iIndex ~= 0 ) then
+	if ( self.m_mapGlyphs:HasGlyph(iClassIndex, iSpecIndex, iGlyphIndex) ) then
 		return
 	end
 	
 	-- Add Glyph
-	local iGlyphID = hGlyphDesc:GetGlyphID()
-	if ( not hPlayer:HasSpell(iGlyphID) ) then
-		hPlayer:LearnSpell( iGlyphID )
-	end
+	_Learn( hPlayer, hGlyphDesc:GetGlyphID() )
 
-	table.insert( self.m_arrGlyphs, hGlyphDesc )
+	self.m_mapGlyphs:AddGlyph( hGlyphDesc )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessPlayerData : Methods - Database
-local function CLArrayFromString( strData )
-    local arrResult = {}
-    if ( not strData or strData == "" ) then
-		return arrResult
-	end
-	for i in string.gmatch(strData, "([^,]+)") do
-		table.insert(arrResult, tonumber(i))
-	end
-    return arrResult
-end
-local function CLArrayToString( arrData )
-    local strResult = ""
-    if ( #arrData > 1 ) then
-        strResult = table.concat(arrData, ",")
-    elseif ( #arrData == 1 ) then
-        strResult = arrData[1]
-    end
-    return strResult
-end
-
-function ClassLessPlayerData:DBCreate()
+-- CLPlayerData : Methods - Database
+function CLPlayerData:DBCreate()
     CharDBQuery( "INSERT INTO character_classless VALUES (" .. self.m_iGUID .. ", '', '', '', 0)" )
 end
-function ClassLessPlayerData:DBDestroy()
+function CLPlayerData:DBDestroy()
 	CharDBQuery( "DELETE FROM character_classless WHERE guid = " .. self.m_iGUID )
 end
 
-function ClassLessPlayerData:DBLoad()
+function CLPlayerData:DBLoad()
 	-- Load from DB
 	local hQuery = CharDBQuery( "SELECT * FROM character_classless WHERE guid = " .. self.m_iGUID )
 	if ( hQuery == nil ) then
@@ -562,66 +448,69 @@ function ClassLessPlayerData:DBLoad()
 	local iResetCounter = hQuery:GetUInt32(4)
 	
 	-- Build Player Data
-	self.m_arrSpells = {}
-	self.m_arrTalents = {}
-	self.m_arrGlyphs = {}
+	self.m_mapSpells:Clear()
+	self.m_mapTalents:Clear()
+	self.m_mapGlyphs:Clear()
 	self.m_iResetCounter = iResetCounter
 
-	local arrSpellIDs = CLArrayFromString( strSpells )
+	local arrSpellIDs = _ArrayFromString( strSpells )
 	local iSpellCount = #arrSpellIDs
 	for i = 1, iSpellCount do
-		local iClassIndex, iSpecIndex, iSpellIndex, iRank = CLServer:GetDataSpells():SearchSpell( arrSpellIDs[i] )
-		local hSpellDesc = CLServer:GetDataSpells():GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
+		local iClassIndex, iSpecIndex, iSpellIndex, iRank = CLDataSpells:GetInstance():SearchSpell( arrSpellIDs[i] )
+		local hSpellDesc = CLDataSpells:GetInstance():GetSpellDesc( iClassIndex, iSpecIndex, iSpellIndex )
 		hSpellDesc:SetCurrentRank( iRank )
-		table.insert( self.m_arrSpells, hSpellDesc )
+		self.m_mapSpells:AddSpell( hSpellDesc )
 	end
 
-	local arrTalentIDs = CLArrayFromString( strTalents )
+	local arrTalentIDs = _ArrayFromString( strTalents )
 	local iTalentCount = #arrTalentIDs
 	for i = 1, iTalentCount do
-		local iClassIndex, iSpecIndex, iGridTier, iGridSlot, iRank = CLServer:GetDataTalents():SearchTalent( arrTalentIDs[i] )
-		local hTalentDesc = CLServer:GetDataTalents():GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+		local iClassIndex, iSpecIndex, iGridTier, iGridSlot, iRank = CLDataTalents:GetInstance():SearchTalent( arrTalentIDs[i] )
+		local hTalentDesc = CLDataTalents:GetInstance():GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 		hTalentDesc:SetCurrentRank( iRank )
-		table.insert( self.m_arrTalents, hTalentDesc )
+		self.m_mapTalents:AddTalent( hTalentDesc )
 	end
 	
-	local arrGlyphIDs = CLArrayFromString( strGlyphs )
+	local arrGlyphIDs = _ArrayFromString( strGlyphs )
 	local iGlyphCount = #arrGlyphIDs
 	for i = 1, iGlyphCount do
-		local iClassIndex, iSpecIndex, iGlyphIndex = CLServer:GetDataGlyphs():SearchGlyph( arrGlyphIDs[i] )
-		local hGlyphDesc = CLServer:GetDataGlyphs():GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
-		table.insert( self.m_arrGlyphs, hGlyphDesc )
+		local iClassIndex, iSpecIndex, iGlyphIndex = CLDataGlyphs:GetInstance():SearchGlyph( arrGlyphIDs[i] )
+		local hGlyphDesc = CLDataGlyphs:GetInstance():GetGlyphDesc( iClassIndex, iSpecIndex, iGlyphIndex )
+		self.m_mapGlyphs:AddGlyph( hGlyphDesc )
 	end
 	
 	return true
 end
-function ClassLessPlayerData:DBSave()
+function CLPlayerData:DBSave()
 	-- Build SpellID String
 	local arrSpellIDs = {}
-	local iSpellCount = self:GetSpellCount()
-	for i = 1, iSpellCount do
-		table.insert( arrSpellIDs, self.m_arrSpells[i]:GetCurrentSpellID() )
-	end
+	self.m_mapSpells:EnumCallback(
+		function( hSpellDesc )
+			table.insert( arrSpellIDs, hSpellDesc:GetCurrentSpellID() )
+		end
+	)
 	
-	local strSpells = CLArrayToString( arrSpellIDs )
+	local strSpells = _ArrayToString( arrSpellIDs )
 	
 	-- Build TalentID String
 	local arrTalentIDs = {}
-	local iTalentCount = self:GetTalentCount()
-	for i = 1, iTalentCount do
-		table.insert( arrTalentIDs, self.m_arrTalents[i]:GetCurrentTalentID() )
-	end
+	self.m_mapTalents:EnumCallback(
+		function( hTalentDesc )
+			table.insert( arrTalentIDs, hTalentDesc:GetCurrentTalentID() )
+		end
+	)
 	
-	local strTalents = CLArrayToString( arrTalentIDs )
+	local strTalents = _ArrayToString( arrTalentIDs )
 	
 	-- Build GlyphID String
 	local arrGlyphIDs = {}
-	local iGlyphCount = self:GetGlyphCount()
-	for i = 1, iGlyphCount do
-		table.insert( arrGlyphIDs, self.m_arrGlyphs[i]:GetGlyphID() )
-	end
-	
-	local strGlyphs = CLArrayToString( arrGlyphIDs )
+	self.m_mapGlyphs:EnumCallback(
+		function( hGlyphDesc )
+			table.insert( arrGlyphIDs, hGlyphDesc:GetGlyphID() )
+		end
+	)
+
+	local strGlyphs = _ArrayToString( arrGlyphIDs )
 	
 	-- Reset Counter
 	local iResetCounter = self.m_iResetCounter

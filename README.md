@@ -3,21 +3,22 @@
 ClassLess System for AzerothCore ... the Solo-friendly way !
 
 Current Features :
-- Server Spell/Talent/Glyph manager (ELUNA)
-- Client UI (ELUNA)
+- (ELUNA) Server Spell/Talent/Glyph manager
+- (ELUNA) Client UI
 - Secured against client-side tempering !
 
 Work In Progress :
-- Add Pet support (ELUNA)
-- Mana/Rage/Energy uniformisation (DBC/SQL)
-- Item uniformisation (DBC/SQL)
-- Quest uniformisation (DBC/SQL)
-- Generic Class
 - Extensive testing of all Spells/Talents/Glyphs and interactions
-- Stat Allocation system ?
-- Some of those most likely require C++ core edits, hence a custom build.
-As much as possible I want this to be compatible with any azerothcore-based
-repack for now ...
+- (ELUNA) Pet support 99% done but on hold : Eluna has no way to learn/unlearn pet spells, known issue. This
+will require me to implement the feature in Eluna's source directly and request a pull. Repacks will have to
+update.
+- (DBC/SQL) Mana/Rage/Energy uniformisation
+- (DBC/SQL) Item uniformisation
+- (DBC/SQL) Quest uniformisation
+- (C++,DBC/SQL) Generic Class
+- (C++,DBC/SQL) Stat Allocation system ?
+- Those which require C++ core edits are not planned in the near future. As much as possible I want this to
+be compatible with any azerothcore/trinitycore-based repack ...
 
 Compatibility :
 - Any AzerothCore build/repack with Eluna support.
@@ -34,17 +35,16 @@ Installation :
 - Copy the source files in ClassLess/ELUNA in the eluna script folder of your server, in a subdirectory of your choice (eg. 'ClassLess').
 - Done !
 
-Configuration : You can alter a few settings at the very top of CLServer.lua
-- CLCONFIG_SPELL_POINTS_RATE (default = 1) =
-Number of Spell Points you gain per level
-- CLCONFIG_TALENT_POINTS_RATE (default = 1) =
-Talent Points rate, MUST match your worldserver config file
-- CLCONFIG_REQUIRED_TALENT_POINTS_PER_TIER (default = 5) =
-Number of talent points to progress down talent tiers
-- CLCONFIG_GLYPH_MAJOR_SLOTS_RATE and CLCONFIG_GLYPH_MINOR_SLOTS_RATE (default = 1) =
-Major/Minor Glyph Slots progression rate
-- CLCONFIG_RESET_PRICES =
-Sequence of cost increase when resetting Spells/Talents/Glyphs
+Configuration : You can alter a few settings in CLConfig.lua, they should be self-explanatory :
+- CLConfig.SpellPointsRate = 1.0
+- CLConfig.PetSpellPointsRate = 1.0
+- CLConfig.TalentPointsRate = 1.0
+- CLConfig.PetTalentPointsRate = 1.0
+- CLConfig.RequiredTalentPointsPerTier = 5
+- CLConfig.RequiredPetTalentPointsPerTier = 3
+- CLConfig.GlyphMajorSlotsRate = 1.0
+- CLConfig.GlyphMinorSlotsRate = 1.0
+- CLConfig.AbilityResetCosts = { 10000, 50000, 100000, 150000, 200000, 350000 } -- in copper, any number of values
 
 Notes :
 - Any suggestion / comment / feedback / bug report is very welcome !

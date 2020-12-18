@@ -9,6 +9,7 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLTalentDesc then require("CLMapTalents") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -19,162 +20,18 @@ if AIO.IsServer() then
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- Constants
-if ( CLClassCount == nil ) then
-	CLClassCount = 10
-end
-if ( CLClassNames == nil ) then
-	CLClassNames = { "DeathKnight", "Druid", "Hunter", "Mage", "Paladin", "Priest", "Rogue", "Shaman", "Warlock", "Warrior" }
-end
-
-if ( CLClassSpecCount == nil ) then
-	CLClassSpecCount = 3
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessTalentDesc - Declaration
-ClassLessTalentDesc = class({
+-- CLDataTalents : Declaration
+CLDataTalents = class({
 	-- Static Members
+	sm_hInstance = nil
 })
-
-function ClassLessTalentDesc:init( iClassIndex, iSpecIndex, iGridTier, iGridSlot,
-								   arrTalentIDs, iRequiredTalentGridTier, iRequiredTalentGridSlot,
-								   bIsTalentSpell, arrTalentSpellLevels, hObject )
-	-- Members
-	self.m_iClassIndex = iClassIndex
-	self.m_iSpecIndex = iSpecIndex
-	self.m_iGridTier = iGridTier
-	self.m_iGridSlot = iGridSlot
-	
-	self.m_arrTalentIDs = arrTalentIDs
-	self.m_iRequiredTalentGridTier = iRequiredTalentGridTier
-	self.m_iRequiredTalentGridSlot = iRequiredTalentGridSlot
-	self.m_bIsTalentSpell = bIsTalentSpell
-	self.m_arrTalentSpellLevels = arrTalentSpellLevels
-
-	self.m_iCurrentRank = 0
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessTalentDesc : Encoding / Decoding
-function ClassLessTalentDesc:ToArray( hTalentDesc )
-	return {
-		hTalentDesc.m_iClassIndex, hTalentDesc.m_iSpecIndex, hTalentDesc.m_iGridTier, hTalentDesc.m_iGridSlot,
-		hTalentDesc.m_arrTalentIDs, hTalentDesc.m_iRequiredTalentGridTier, hTalentDesc.m_iRequiredTalentGridSlot,
-		hTalentDesc.m_bIsTalentSpell, hTalentDesc.m_arrTalentSpellLevels, hTalentDesc.m_iCurrentRank
-	}
-end
-function ClassLessTalentDesc:FromArray( arrTalentDesc )
-	local hTalentDesc = ClassLessTalentDesc(
-		arrTalentDesc[1], arrTalentDesc[2], arrTalentDesc[3], arrTalentDesc[4],
-		arrTalentDesc[5], arrTalentDesc[6], arrTalentDesc[7],
-		arrTalentDesc[8], arrTalentDesc[9]
-	)
-	hTalentDesc.m_iCurrentRank = arrTalentDesc[10]
-	return hTalentDesc
-end
-
-function ClassLessTalentDesc:EncodeTalents( arrTalents )
-	local arrEncodedTalents = {}
-	for i = 1, #arrTalents do
-		arrEncodedTalents[i] = ClassLessTalentDesc:ToArray( arrTalents[i] )
+function CLDataTalents:GetInstance()
+	if ( self.sm_hInstance == nil ) then
+		self.sm_hInstance = CLDataTalents()
+		self.sm_hInstance:Initialize()
 	end
-	return arrEncodedTalents
+	return self.sm_hInstance
 end
-function ClassLessTalentDesc:DecodeTalents( arrTalents )
-	local arrDecodedTalents = {}
-	for i = 1, #arrTalents do
-		arrDecodedTalents[i] = ClassLessTalentDesc:FromArray( arrTalents[i] )
-	end
-	return arrDecodedTalents
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessTalentDesc : Getters / Setters
-function ClassLessTalentDesc:GetClassIndex()
-	return self.m_iClassIndex
-end
-function ClassLessTalentDesc:GetSpecIndex()
-	return self.m_iSpecIndex
-end
-function ClassLessTalentDesc:GetGridTier()
-	return self.m_iGridTier
-end
-function ClassLessTalentDesc:GetGridSlot()
-	return self.m_iGridSlot
-end
-
-function ClassLessTalentDesc:GetRankCount()
-	return #( self.m_arrTalentIDs )
-end
-function ClassLessTalentDesc:GetTalentID( iRank )
-	return self.m_arrTalentIDs[iRank]
-end
-function ClassLessTalentDesc:GetRequiredTalent()
-	return self.m_iRequiredTalentGridTier, self.m_iRequiredTalentGridSlot
-end
-function ClassLessTalentDesc:IsTalentSpell()
-	return self.m_bIsTalentSpell
-end
-function ClassLessTalentDesc:GetTalentSpellLevel( iRank )
-	return self.m_arrTalentSpellLevels[iRank]
-end
-
-function ClassLessTalentDesc:GetCurrentRank()
-	return self.m_iCurrentRank
-end
-function ClassLessTalentDesc:SetCurrentRank( iRank )
-	self.m_iCurrentRank = iRank
-end
-function ClassLessTalentDesc:GetCurrentTalentID()
-	return self.m_arrTalentIDs[self.m_iCurrentRank]
-end
-function ClassLessTalentDesc:GetCurrentTalentSpellLevel()
-	return self.m_arrTalentSpellLevels[self.m_iCurrentRank]
-end
-function ClassLessTalentDesc:GetCurrentCost()
-	if self.m_bIsTalentSpell then
-		return 1
-	end
-	return self.m_iCurrentRank
-end
-function ClassLessTalentDesc:IsMaxed()
-	if self.m_bIsTalentSpell then
-		return ( self.m_iCurrentRank >= 1 )
-	end
-	return ( self.m_iCurrentRank >= self:GetRankCount() )
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessTalentDesc : Methods
-function ClassLessTalentDesc:GetIcon()
-	local strName, iRank, hIcon = GetSpellInfo( self.m_arrTalentIDs[1] )
-	return hIcon
-end
-
-function ClassLessTalentDesc:GetTalentSpellRankFromLevel( iPlayerLevel )
-	local iRankCount = self:GetRankCount()
-	local iRank = 0
-	for i = 1, iRankCount do
-		local iTalentSpellLevel = self:GetTalentSpellLevel( i )
-		if ( iPlayerLevel >= iTalentSpellLevel ) then
-			iRank = i
-		else
-			break
-		end
-	end
-	return iRank
-end
-function ClassLessTalentDesc:GetTalentSpellIDFromLevel( iPlayerLevel )
-	local iRank = self:GetTalentSpellRankFromLevel( iPlayerLevel )
-	return self:GetTalentID( iRank )
-end
-
--------------------------------------------------------------------------------------------------------------------
--- ClassLessDataTalents : Declaration
-ClassLessDataTalents = class({
-	-- Static Members
-})
 
 -- Format :
 -- m_arrTalents[classname][specindex] = {
@@ -196,33 +53,33 @@ ClassLessDataTalents = class({
 --			}
 --		}
 -- }
-function ClassLessDataTalents:init()
+function CLDataTalents:init()
 	-- Members
 	self.m_arrTalents = nil
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataTalents : Getters / Setters
-function ClassLessDataTalents:GetClassSpecName( iClassIndex, iSpecIndex )
+-- CLDataTalents : Getters / Setters
+function CLDataTalents:GetClassSpecName( iClassIndex, iSpecIndex )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][1]
 end
-function ClassLessDataTalents:GetClassSpecTexture( iClassIndex, iSpecIndex )
+function CLDataTalents:GetClassSpecTexture( iClassIndex, iSpecIndex )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][2]
 end
 
-function ClassLessDataTalents:GetGridWidth( iClassIndex, iSpecIndex )
+function CLDataTalents:GetGridWidth( iClassIndex, iSpecIndex )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][3]
 end
-function ClassLessDataTalents:GetGridHeight( iClassIndex, iSpecIndex )
+function CLDataTalents:GetGridHeight( iClassIndex, iSpecIndex )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][4]
 end
 
-function ClassLessDataTalents:IsEmptyCell( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLDataTalents:IsEmptyCell( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	return ( #(self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][1]) == 0 )
 end
 
-function ClassLessDataTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
-	return ClassLessTalentDesc(
+function CLDataTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+	return CLTalentDesc(
 		iClassIndex, iSpecIndex, iGridTier, iGridSlot,
 		self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][1],
 		self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][2][1],
@@ -232,24 +89,24 @@ function ClassLessDataTalents:GetTalentDesc( iClassIndex, iSpecIndex, iGridTier,
 	)
 end
 
-function ClassLessDataTalents:GetEmptyCellArrow( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLDataTalents:GetEmptyCellArrow( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][5]
 end
 
-function ClassLessDataTalents:GetTalentCellArrowLeft( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLDataTalents:GetTalentCellArrowLeft( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][5][1]
 end
-function ClassLessDataTalents:GetTalentCellArrowRight( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLDataTalents:GetTalentCellArrowRight( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][5][2]
 end
-function ClassLessDataTalents:GetTalentCellArrowTop( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLDataTalents:GetTalentCellArrowTop( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][5][3]
 end
-function ClassLessDataTalents:GetTalentCellArrowBottom( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
+function CLDataTalents:GetTalentCellArrowBottom( iClassIndex, iSpecIndex, iGridTier, iGridSlot )
 	return self.m_arrTalents[CLClassNames[iClassIndex]][iSpecIndex][5][iGridTier][iGridSlot][5][4]
 end
 
-function ClassLessDataTalents:SearchTalent( iTalentID )
+function CLDataTalents:SearchTalent( iTalentID )
 	for iClassIndex = 1, CLClassCount do
 		for iSpecIndex = 1, CLClassSpecCount do
 			local iGridWidth = self:GetGridWidth( iClassIndex, iSpecIndex )
@@ -271,8 +128,8 @@ function ClassLessDataTalents:SearchTalent( iTalentID )
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessDataTalents : Initialization
-function ClassLessDataTalents:Initialize()
+-- CLDataTalents : Initialization
+function CLDataTalents:Initialize()
 	if ( self.m_arrTalents ~= nil ) then
 		return
 	end
@@ -2414,6 +2271,130 @@ function ClassLessDataTalents:Initialize()
 					{ {}, {0,0}, 0, {}, "None" },
 					{ {46968}, {0,0}, 1, {60}, {"None","None","None","None"} },
 					{ {}, {0,0}, 0, {}, "None" },
+					{ {}, {0,0}, 0, {}, "None" }
+				}
+			}
+		}
+	}
+	
+	-- Pet
+	self.m_arrTalents.Pet = {
+		{
+			"Cunning", "Interface\\TalentFrame\\HunterPetCunning", 4, 6, {
+				{
+					{ {61682,61683}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {61684}, {0,0}, 1, {20}, {"None","None","None","Out"} },
+					{ {61686,61687,61688}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {61689,61690}, {0,0}, 0, {}, {"None","None","None","None"} }
+				},
+				{
+					{ {19596}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {53483,53485}, {1,2}, 0, {}, {"None","None","In","None"} },
+					{ {53514,53516}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {53182,53183,53184}, {0,0}, 0, {}, {"None","None","None","Out"} }
+				},
+				{
+					{ {61680,61681,52858}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {53409,53411}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {54044}, {0,0}, 1, {44}, {"None","None","None","None"} },
+					{ {}, {0,0}, 0, {}, "Vert" }
+				},
+				{
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {53427,53429,53430}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {52234,53497}, {0,0}, 0, {}, {"None","None","None","Out"} },
+					{ {53511,53512}, {2,4}, 0, {}, {"None","None","In","None"} }
+				},
+				{
+					{ {53508}, {0,0}, 1, {68}, {"None","None","None","Out"} },
+					{ {53517}, {0,0}, 1, {68}, {"None","None","None","None"} },
+					{ {53490}, {4,3}, 1, {68}, {"None","None","In","None"} },
+					{ {53450,53451}, {0,0}, 0, {}, {"None","None","None","Out"} }
+				},
+				{
+					{ {62758,62762}, {5,1}, 0, {}, {"None","None","In","None"} },
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {53480}, {5,4}, 1, {68}, {"None","None","In","None"} }
+				}
+			}
+		},
+		{
+			"Ferocity", "Interface\\TalentFrame\\HunterPetFerocity", 4, 6, {
+				{
+					{ {61682,61683}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {61684}, {0,0}, 1, {20}, {"None","None","None","None"} },
+					{ {61686,61687,61688}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {61689,61690}, {0,0}, 0, {}, {"None","None","None","None"} }
+				},
+				{
+					{ {53180,53181}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {53186,53187}, {0,0}, 0, {}, {"None","None","None","Out"} },
+					{ {53182,53183,53184}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {19596}, {0,0}, 0, {}, {"None","None","None","None"} }
+				},
+				{
+					{ {61680,61681,52858}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {}, {0,0}, 0, {}, "Vert" },
+					{ {53409,53411}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {61685}, {0,0}, 1, {20}, {"None","None","None","None"} }
+				},
+				{
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {55709}, {2,2}, 0, {}, {"None","None","In","Out"} },
+					{ {53203,53204,53205}, {0,0}, 0, {}, {"None","None","None","Out"} },
+					{ {53427,53429,53430}, {0,0}, 0, {}, {"None","None","None","None"} }
+				},
+				{
+					{ {53401}, {0,0}, 1, {68}, {"None","None","None","None"} },
+					{ {53426}, {4,2}, 1, {68}, {"None","None","In","None"} },
+					{ {53434}, {4,3}, 1, {68}, {"None","None","In","None"} },
+					{ {}, {0,0}, 0, {}, "None" }
+				},
+				{
+					{ {62759,62760}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {62758,62762}, {5,3}, 0, {}, {"None","None","In","None"} },
+					{ {}, {0,0}, 0, {}, "None" }
+				}
+			}
+		},
+		{
+			"Tenacity", "Interface\\TalentFrame\\HunterPetTenacity", 4, 6, {
+				{
+					{ {61682,61683}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {61685}, {0,0}, 1, {20}, {"None","None","None","None"} },
+					{ {61686,61687,61688}, {0,0}, 0, {}, {"None","None","None","Out"} },
+					{ {61689,61690}, {0,0}, 0, {}, {"None","None","None","Out"} }
+				},
+				{
+					{ {53182,53183,53184}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {19596}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {53481,53482}, {1,3}, 0, {}, {"None","None","In","None"} },
+					{ {53175,53176}, {1,4}, 0, {}, {"None","None","In","None"} }
+				},
+				{
+					{ {61680,61681,52858}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {53178,53179}, {0,0}, 0, {}, {"None","None","None","Out"} },
+					{ {53409,53411}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {63900}, {0,0}, 1, {44}, {"None","None","None","None"} }
+				},
+				{
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {}, {0,0}, 0, {}, "Vert" },
+					{ {53450,53451}, {0,0}, 0, {}, {"None","None","None","Out"} },
+					{ {53427,53429,53430}, {0,0}, 0, {}, {"None","None","None","None"} }
+				},
+				{
+					{ {53478}, {0,0}, 1, {68}, {"None","None","None","None"} },
+					{ {53477}, {3,2}, 1, {68}, {"None","None","In","None"} },
+					{ {53480}, {4,3}, 1, {68}, {"None","None","In","Out"} },
+					{ {53476}, {0,0}, 1, {68}, {"None","None","None","None"} }
+				},
+				{
+					{ {}, {0,0}, 0, {}, "None" },
+					{ {62764,62765}, {0,0}, 0, {}, {"None","None","None","None"} },
+					{ {62758,62762}, {5,3}, 0, {}, {"None","None","In","None"} },
 					{ {}, {0,0}, 0, {}, "None" }
 				}
 			}

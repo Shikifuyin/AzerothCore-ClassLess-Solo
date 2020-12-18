@@ -9,6 +9,7 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
+if not CLClient then require("CLClient") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
@@ -22,12 +23,12 @@ end
 -- Constants
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphTabFrame - Declaration
-ClassLessGlyphTabFrame = class({
+-- CLUITabFrameGlyphs - Declaration
+CLUITabFrameGlyphs = class({
 	-- Static Members
 })
 
-function ClassLessGlyphTabFrame:init()
+function CLUITabFrameGlyphs:init()
 	-- Members
 	self.m_iGlyphButtonsSpacing = 8
 	self.m_iGlyphButtonsPerRow = 5
@@ -53,31 +54,31 @@ function ClassLessGlyphTabFrame:init()
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphTabFrame : Getters / Setters
+-- CLUITabFrameGlyphs : Getters / Setters
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphTabFrame : Methods
-function ClassLessGlyphTabFrame:Show()
+-- CLUITabFrameGlyphs : Methods
+function CLUITabFrameGlyphs:Show()
 	if ( not self.m_hFrame:IsVisible() ) then
 		self.m_hFrame:Show()
 	end
 end
-function ClassLessGlyphTabFrame:Hide()
+function CLUITabFrameGlyphs:Hide()
 	if self.m_hFrame:IsVisible() then
 		self.m_hFrame:Hide()
 	end
 end
 
-function ClassLessGlyphTabFrame:UpdateButton( iSpecIndex, iGlyphIndex )
-	-- Get Glyphs Data
-	local hDataGlyphs = CLClient:GetDataGlyphs()
+function CLUITabFrameGlyphs:UpdateButton( iSpecIndex, iGlyphIndex )
+	-- Get Client Instance
+	local hClient = CLClient:GetInstance()
 	
 	-- Get Glyph Desc
-	local hGlyphDesc = hDataGlyphs:GetGlyphDesc( self.m_iClassIndex, iSpecIndex, iGlyphIndex )
+	local hGlyphDesc = CLDataGlyphs:GetInstance():GetGlyphDesc( self.m_iClassIndex, iSpecIndex, iGlyphIndex )
 
 	-- Get State
-	local bKnown = CLClient:IsGlyphKnown( self.m_iClassIndex, iSpecIndex, iGlyphIndex )
-	local bPending = CLClient:IsGlyphPending( self.m_iClassIndex, iSpecIndex, iGlyphIndex )
+	local bKnown = hClient:GetKnownGlyphs():HasGlyph( self.m_iClassIndex, iSpecIndex, iGlyphIndex )
+	local bPending = hClient:GetPendingGlyphs():HasGlyph( self.m_iClassIndex, iSpecIndex, iGlyphIndex )
 	local bCanLearn = ( UnitLevel("player") >= hGlyphDesc:GetGlyphLevel() )
 	
 	-- Setup Button State
@@ -101,9 +102,9 @@ function ClassLessGlyphTabFrame:UpdateButton( iSpecIndex, iGlyphIndex )
 		end
 	end
 end
-function ClassLessGlyphTabFrame:Update()
+function CLUITabFrameGlyphs:Update()
 	-- Get Glyphs Data
-	local hDataGlyphs = CLClient:GetDataGlyphs()
+	local hDataGlyphs = CLDataGlyphs:GetInstance()
 	
 	-- Enum all Specs
 	for iSpecIndex = 1, CLClassSpecCount do
@@ -117,8 +118,8 @@ function ClassLessGlyphTabFrame:Update()
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- ClassLessGlyphTabFrame : Initialization
-function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
+-- CLUITabFrameGlyphs : Initialization
+function CLUITabFrameGlyphs:Initialize( hParentFrame, iClassIndex )
 	if ( self.m_hFrame ~= nil ) then
 		return
 	end
@@ -155,7 +156,7 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
     )
 	
 	-- Get Glyphs Data
-	local hDataGlyphs = CLClient:GetDataGlyphs()
+	local hDataGlyphs = CLDataGlyphs:GetInstance()
 
 	-- Enum all Specs
 	for iSpecIndex = 1, CLClassSpecCount do
@@ -265,7 +266,7 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
 			self.m_arrGlyphButtons[iSpecIndex][iGlyphIndex]:SetScript( "OnEnter",
 				function()
 					-- Attach ToolTip to Button Frame
-					local hToolTip = CLClient:GetMainToolTip()
+					local hToolTip = CLClient:GetInstance():GetToolTip()
 					hToolTip:SetOwner( hThis.m_arrGlyphButtons[iSpecIndex][iGlyphIndex], "ANCHOR_RIGHT" )
 
 					-- Get Glyph Desc
@@ -273,7 +274,7 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
 					local iGlyphID = hGlyphDesc:GetGlyphID()
 					local iGlyphLevel = hGlyphDesc:GetGlyphLevel()
 					local bIsMajor = hGlyphDesc:IsMajor()
-					local strLink = CLClient:GetAbilityLink( iGlyphID )
+					local strLink = CLClient:GetInstance():GetAbilityLink( iGlyphID )
 					
 					-- Build ToolTip
 					hToolTip:SetHyperlink( strLink )
@@ -294,7 +295,7 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
 			self.m_arrGlyphButtons[iSpecIndex][iGlyphIndex]:SetScript( "OnLeave",
 				function()
 					-- Hide tooltip
-					CLClient:GetMainToolTip():Hide()
+					CLClient:GetInstance():GetToolTip():Hide()
 				end
 			)
 			
@@ -303,9 +304,9 @@ function ClassLessGlyphTabFrame:Initialize( hParentFrame, iClassIndex )
 				function( self, strMouseButton, bHeldDown )
 					-- Add/Remove Pending Glyph
 					if ( strMouseButton == "LeftButton" ) then
-						CLClient:AddPendingGlyph( hThis.m_iClassIndex, iSpecIndex, iGlyphIndex )
+						CLClient:GetInstance():AddPendingGlyph( hThis.m_iClassIndex, iSpecIndex, iGlyphIndex )
 					elseif ( strMouseButton == "RightButton" ) then
-						CLClient:RemovePendingGlyph( hThis.m_iClassIndex, iSpecIndex, iGlyphIndex )
+						CLClient:GetInstance():RemovePendingGlyph( hThis.m_iClassIndex, iSpecIndex, iGlyphIndex )
 					end
 					
 					-- Update Button State
