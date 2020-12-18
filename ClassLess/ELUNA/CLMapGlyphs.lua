@@ -9,7 +9,7 @@
 -- Requirements
 local AIO = AIO or require("AIO")
 if not class then require("class") end
-if not CLClassCount then require("CLContants") end
+if not CLClassCount then require("CLConstants") end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Client / Server Setup
