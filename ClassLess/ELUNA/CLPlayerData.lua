@@ -343,11 +343,11 @@ function CLPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot, 
 		
 		-- Check if we have enough points
 		if hTalentDesc:IsPetTalent() then
-			if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) <= (iTalentRank - iRank) ) then
+			if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) < (iTalentRank - iRank) ) then
 				return
 			end
 		else
-			if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) <= (iTalentRank - iRank) ) then
+			if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) < (iTalentRank - iRank) ) then
 				return
 			end
 		end
@@ -366,11 +366,11 @@ function CLPlayerData:AddTalent( iClassIndex, iSpecIndex, iGridTier, iGridSlot, 
 	
 	-- Check if we have enough points
 	if hTalentDesc:IsPetTalent() then
-		if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) <= iTalentRank ) then
+		if ( CLServer:GetInstance():GetFreePetTalentPoints(hPlayer) < iTalentRank ) then
 			return
 		end
 	else
-		if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) <= iTalentRank ) then
+		if ( CLServer:GetInstance():GetFreeTalentPoints(hPlayer) < iTalentRank ) then
 			return
 		end
 	end
