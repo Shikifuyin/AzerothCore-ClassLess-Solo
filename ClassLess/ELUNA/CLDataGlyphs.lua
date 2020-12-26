@@ -300,7 +300,7 @@ function CLDataGlyphs:Initialize()
 			"Holy", "Interface\\TalentFrame\\PaladinHoly", {
 				{57979,15,0},
 				{57955,15,0},
-				{75954,15,0},
+				{57954,15,0},
 				{57947,20,0},
 				{54939,15,1},
 				{54937,15,1},
